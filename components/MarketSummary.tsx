@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMarketStore, type AssetType } from '@/lib/store/useMarketStore'
 import Badge from './ui/Badge'
-import HeroChart from './HeroChart'
+import AsseturaChart from '@/components/AsseturaChart'
+import StockDetailModal from './StockDetailModel'
 
 const INDICES = [
     { name: 'Nasdaq 100', code: 'NDX', price: '27,710.36', unit: 'USD', chg: '+0.94', color: '#2980b9', short: '100' },
@@ -73,6 +74,21 @@ function drawArea(canvas: HTMLCanvasElement, data: number[], color: string, fill
 
 const ASSET_TABS: AssetType[] = ['CRYPTO', 'STOCKS', 'FOREX', 'OPTIONS']
 
+const ASSET_ICON: Record<AssetType, string> = {
+    CRYPTO: '₿',
+    STOCKS: 'S',
+    FOREX: 'FX',
+    OPTIONS: 'OP',
+}
+
+interface SelectedStock {
+    symbol: string
+    name: string
+    price: number
+    change: number
+    color: string
+}
+
 export default function MarketSummary() {
     const { activeAsset, assets, setActiveAsset } = useMarketStore()
     const asset = assets[activeAsset]
@@ -85,15 +101,13 @@ export default function MarketSummary() {
     const [cryptoData] = useState(() => generateLine(2.1, 80, 0.04, 0.006))
     const [dxyData] = useState(() => generateLine(100.5, 60, 0.2, -0.03))
     const [yieldData] = useState(() => generateLine(4.1, 60, 0.03, 0.004))
-
     const [livePrice, setLivePrice] = useState(asset.price)
+    const [selectedStock, setSelectedStock] = useState<SelectedStock | null>(null)
 
-    // Reset live price when asset changes
     useEffect(() => {
         setLivePrice(assets[activeAsset].price)
     }, [activeAsset, assets])
 
-    // Live price tick
     useEffect(() => {
         const id = setInterval(() => {
             setLivePrice((p) => p * (1 + (Math.random() - 0.499) * 0.0004))
@@ -101,7 +115,6 @@ export default function MarketSummary() {
         return () => clearInterval(id)
     }, [activeAsset])
 
-    // Mini charts
     useEffect(() => {
         const draw = () => {
             if (cryptoRef.current) drawArea(cryptoRef.current, cryptoData, '#00d4a0', 'rgba(0,212,160,0.15)')
@@ -113,15 +126,7 @@ export default function MarketSummary() {
         return () => window.removeEventListener('resize', draw)
     }, [cryptoData, dxyData, yieldData])
 
-    const fmt = (n: number) =>
-        activeAsset === 'FOREX' ? n.toFixed(4) : n.toFixed(2)
-
-    const assetIcon: Record<AssetType, string> = {
-        CRYPTO: '₿',
-        STOCKS: 'S',
-        FOREX: 'FX',
-        OPTIONS: 'OP',
-    }
+    const fmt = (n: number) => activeAsset === 'FOREX' ? n.toFixed(4) : n.toFixed(2)
 
     return (
         <div style={{ padding: '0 20px 20px' }}>
@@ -156,7 +161,7 @@ export default function MarketSummary() {
                 ))}
             </div>
 
-            {/* Top row: Hero + Indices */}
+            {/* Top row */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 280px',
@@ -164,46 +169,35 @@ export default function MarketSummary() {
                 borderRadius: '8px',
                 overflow: 'hidden',
                 marginBottom: '12px',
-                height: '300px',
+                height: '460px',
                 background: 'var(--bg2)',
             }}>
 
                 {/* Hero panel */}
                 <div style={{ borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-
-                    {/* Price header */}
-                    <div style={{ padding: '12px 16px 0', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ padding: '12px 16px 0', display: 'flex', alignItems: 'flex-start', gap: '12px', flexShrink: 0 }}>
                         <div style={{
                             width: '36px', height: '36px', borderRadius: '50%',
                             background: '#c0392b', display: 'flex', alignItems: 'center',
                             justifyContent: 'center', fontSize: '11px', fontWeight: 700,
                             color: '#fff', flexShrink: 0,
                         }}>
-                            {assetIcon[activeAsset]}
+                            {ASSET_ICON[activeAsset]}
                         </div>
-
                         <div>
                             <div style={{ fontSize: '11px', color: 'var(--text2)', marginBottom: '2px' }}>
                                 {asset.name} · {asset.symbol}
                             </div>
                             <div style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '22px',
-                                fontWeight: 600,
-                                color: isPos ? 'var(--green)' : 'var(--red)',
-                                lineHeight: 1.1,
+                                fontFamily: 'var(--font-mono)', fontSize: '22px', fontWeight: 600,
+                                color: isPos ? 'var(--green)' : 'var(--red)', lineHeight: 1.1,
                             }}>
                                 {fmt(livePrice)}
                             </div>
-                            <div style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: '12px',
-                                color: isPos ? 'var(--green)' : 'var(--red)',
-                            }}>
+                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: isPos ? 'var(--green)' : 'var(--red)' }}>
                                 {isPos ? '+' : ''}{asset.changePct.toFixed(2)}%
                             </div>
                         </div>
-
                         <div style={{ display: 'flex', gap: '20px', marginLeft: 'auto' }}>
                             {[
                                 { label: '24H HIGH', val: asset.high24h.toFixed(2) },
@@ -218,50 +212,42 @@ export default function MarketSummary() {
                         </div>
                     </div>
 
-                    {/* Timeframes */}
-                    <div style={{ display: 'flex', gap: '2px', padding: '6px 16px', marginLeft: '48px' }}>
-                        {['1D', '5D', '1M', '6M', '1Y', '5Y'].map((tf, i) => (
-                            <button key={tf} style={{
-                                padding: '2px 8px',
-                                borderRadius: '3px',
-                                fontSize: '10px',
-                                cursor: 'pointer',
-                                border: 'none',
-                                background: i === 0 ? 'var(--bg4)' : 'transparent',
-                                color: i === 0 ? 'var(--green)' : 'var(--text3)',
-                                fontFamily: 'var(--font-mono)',
-                                transition: 'all 0.12s',
-                            }}>
-                                {tf}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Candlestick chart */}
-                    <div style={{ flex: 1, overflow: 'hidden' }}>
-                        <HeroChart color={isPos ? '#00d4a0' : '#ff4d6a'} />
+                    {/* Assetura Chart */}
+                    <div style={{ flex: 1, position: 'relative', margin: '16px 20px 0', minHeight: 0 }}>
+                        <div style={{ position: 'absolute', inset: 0 }}>
+                            <AsseturaChart key={activeAsset} assetType={activeAsset} />
+                        </div>
                     </div>
                 </div>
 
                 {/* Indices panel */}
                 <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                     <div style={{
-                        padding: '10px 14px 8px',
-                        fontSize: '11px', fontWeight: 600,
-                        color: 'var(--text2)',
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase',
-                        borderBottom: '1px solid var(--border)',
+                        padding: '10px 14px 8px', fontSize: '11px', fontWeight: 600,
+                        color: 'var(--text2)', letterSpacing: '0.5px', textTransform: 'uppercase',
+                        borderBottom: '1px solid var(--border)', flexShrink: 0,
                     }}>
                         Major indices
                     </div>
                     {INDICES.map((idx) => (
-                        <div key={idx.code} style={{
-                            display: 'flex', alignItems: 'center',
-                            padding: '8px 14px', gap: '10px',
-                            borderBottom: '1px solid var(--border)',
-                            cursor: 'pointer', transition: 'background 0.12s',
-                        }}>
+                        <div
+                            key={idx.code}
+                            onClick={() => setSelectedStock({
+                                symbol: idx.code,
+                                name: idx.name,
+                                price: parseFloat(idx.price.replace(/,/g, '')),
+                                change: parseFloat(idx.chg),
+                                color: idx.color,
+                            })}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            style={{
+                                display: 'flex', alignItems: 'center',
+                                padding: '8px 14px', gap: '10px',
+                                borderBottom: '1px solid var(--border)',
+                                cursor: 'pointer', transition: 'background 0.12s',
+                            }}
+                        >
                             <div style={{
                                 width: '28px', height: '28px', borderRadius: '50%',
                                 background: idx.color, display: 'flex', alignItems: 'center',
@@ -271,7 +257,9 @@ export default function MarketSummary() {
                                 {idx.short}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{idx.name}</div>
+                                <div style={{ fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {idx.name}
+                                </div>
                                 <div style={{ fontSize: '9px', color: 'var(--text3)' }}>{idx.code}</div>
                             </div>
                             <div style={{ textAlign: 'right' }}>
@@ -309,11 +297,9 @@ export default function MarketSummary() {
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--green)' }}>+12.98%</span>
                         </div>
                     </div>
-
                     <div style={{ height: '62px', position: 'relative', padding: '0 14px' }}>
                         <canvas ref={cryptoRef} style={{ position: 'absolute', top: 0, left: 14, width: 'calc(100% - 28px)', height: '100%' }} />
                     </div>
-
                     <div style={{ padding: '6px 14px 4px' }}>
                         <div style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 500, marginBottom: '6px' }}>Bitcoin dominance</div>
                         <div style={{ height: '5px', borderRadius: '3px', display: 'flex', overflow: 'hidden', gap: '1px', marginBottom: '5px' }}>
@@ -335,12 +321,26 @@ export default function MarketSummary() {
                         </div>
                     </div>
 
+                    {/* Coin rows — clickable */}
                     {COINS.map((c) => (
-                        <div key={c.code} style={{
-                            display: 'flex', alignItems: 'center',
-                            padding: '7px 14px', gap: '8px',
-                            borderTop: '1px solid var(--border)', cursor: 'pointer',
-                        }}>
+                        <div
+                            key={c.code}
+                            onClick={() => setSelectedStock({
+                                symbol: c.sym,
+                                name: c.sym,
+                                price: parseFloat(c.price.replace(/,/g, '')),
+                                change: parseFloat(c.chg),
+                                color: c.color,
+                            })}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            style={{
+                                display: 'flex', alignItems: 'center',
+                                padding: '7px 14px', gap: '8px',
+                                borderTop: '1px solid var(--border)',
+                                cursor: 'pointer', transition: 'background 0.12s',
+                            }}
+                        >
                             <div style={{
                                 width: '22px', height: '22px', borderRadius: '50%',
                                 background: c.color, display: 'flex', alignItems: 'center',
@@ -360,7 +360,6 @@ export default function MarketSummary() {
                             </div>
                         </div>
                     ))}
-
                     <div style={{ padding: '8px 14px', marginTop: 'auto' }}>
                         <span style={{ fontSize: '11px', color: 'var(--blue)', cursor: 'pointer' }}>See all crypto coins ›</span>
                     </div>
@@ -382,17 +381,30 @@ export default function MarketSummary() {
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--red)' }}>−1.33%</span>
                         </div>
                     </div>
-
                     <div style={{ height: '60px', position: 'relative', padding: '0 14px' }}>
                         <canvas ref={dxyRef} style={{ position: 'absolute', top: 0, left: 14, width: 'calc(100% - 28px)', height: '100%' }} />
                     </div>
 
+                    {/* Futures rows — clickable */}
                     {FUTURES.map((f) => (
-                        <div key={f.code} style={{
-                            display: 'flex', alignItems: 'center',
-                            padding: '8px 14px', gap: '10px',
-                            borderTop: '1px solid var(--border)', cursor: 'pointer',
-                        }}>
+                        <div
+                            key={f.code}
+                            onClick={() => setSelectedStock({
+                                symbol: f.code,
+                                name: f.name,
+                                price: parseFloat(f.price.replace(/,/g, '')),
+                                change: parseFloat(f.chg),
+                                color: '#f5a623',
+                            })}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            style={{
+                                display: 'flex', alignItems: 'center',
+                                padding: '8px 14px', gap: '10px',
+                                borderTop: '1px solid var(--border)',
+                                cursor: 'pointer', transition: 'background 0.12s',
+                            }}
+                        >
                             <span style={{ fontSize: '18px' }}>{f.icon}</span>
                             <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: '12px', fontWeight: 500 }}>{f.name}</div>
@@ -404,7 +416,6 @@ export default function MarketSummary() {
                             </div>
                         </div>
                     ))}
-
                     <div style={{ padding: '8px 14px', marginTop: 'auto' }}>
                         <span style={{ fontSize: '11px', color: 'var(--blue)', cursor: 'pointer' }}>See all futures ›</span>
                     </div>
@@ -422,27 +433,22 @@ export default function MarketSummary() {
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--green)' }}>+0.05%</span>
                         </div>
                     </div>
-
                     <div style={{ height: '60px', position: 'relative', padding: '0 14px' }}>
                         <canvas ref={yieldRef} style={{ position: 'absolute', top: 0, left: 14, width: 'calc(100% - 28px)', height: '100%' }} />
                     </div>
-
                     <div style={{ padding: '8px 14px 4px' }}>
                         <div style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 500, marginBottom: '6px' }}>US annual inflation rate</div>
                         <div style={{ display: 'flex', gap: '2px', height: '52px', alignItems: 'flex-end' }}>
                             {INFL_DATA.map((v, i) => (
                                 <div key={i} style={{
-                                    flex: 1,
-                                    borderRadius: '2px 2px 0 0',
+                                    flex: 1, borderRadius: '2px 2px 0 0',
                                     height: `${(v / INFL_MAX) * 100}%`,
                                     background: v > 4 ? 'var(--red)' : v > 3 ? 'var(--amber)' : 'var(--blue)',
-                                    opacity: 0.75,
-                                    minWidth: 0,
+                                    opacity: 0.75, minWidth: 0,
                                 }} />
                             ))}
                         </div>
                     </div>
-
                     <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '10px', color: 'var(--text2)', fontWeight: 500, marginBottom: '8px' }}>US interest rate</div>
                         <div style={{ display: 'flex' }}>
@@ -469,12 +475,19 @@ export default function MarketSummary() {
                             ))}
                         </div>
                     </div>
-
                     <div style={{ padding: '8px 14px', marginTop: 'auto' }}>
                         <span style={{ fontSize: '11px', color: 'var(--blue)', cursor: 'pointer' }}>See all economic indicators ›</span>
                     </div>
                 </div>
             </div>
+
+            {/* Stock detail modal */}
+            {selectedStock && (
+                <StockDetailModal
+                    {...selectedStock}
+                    onClose={() => setSelectedStock(null)}
+                />
+            )}
         </div>
     )
 }

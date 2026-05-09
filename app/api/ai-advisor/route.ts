@@ -1,48 +1,86 @@
 ﻿import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+
+const genAI = new GoogleGenerativeAI(
+    process.env.GEMINI_API_KEY ?? ''
+)
 
 export async function POST(req: NextRequest) {
     try {
         const { messages } = await req.json()
 
-        // FIXED: Added the correct '/v1/messages' endpoint path
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.ANTHROPIC_API_KEY || '',
-                'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514', // Double-check this model string. Standard formats usually look like claude-3-5-sonnet-20241022
-                max_tokens: 1024,
-                system: `You are an expert AI trading advisor for Assetura, a professional multi-asset trading platform.
-You have deep knowledge of crypto, stocks, forex, and options markets.
-You provide concise, actionable market analysis and trading insights.
-Current market context: BTC at $67,420 (+2.34%), ETH at $3,120 (-0.8%), S&P500 at 5,612 (+0.29%).
-Keep responses focused and under 200 words unless asked for detailed analysis.`,
-                messages,
-            }),
+        // Convert messages into Gemini format
+        const formattedMessages = messages.map((msg: any) => ({
+            role: msg.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: msg.content }],
+        }))
+
+        const model = genAI.getGenerativeModel({
+            model: 'gemini-2.5-pro',
+            systemInstruction: `
+You are Assetura Nexus AI — an institutional-grade multi-asset trading intelligence engine powering Assetura, a professional trading and investment platform.
+
+Your role is to deliver high-precision, data-driven market analysis, trade setups, risk assessments, and portfolio insights across crypto, equities, forex, commodities, ETFs, indices, and options.
+
+CORE OBJECTIVE:
+Provide actionable, concise, probability-based trading intelligence optimized for active traders, swing traders, investors, and portfolio managers.
+
+MARKET CONTEXT:
+- BTC: $67,420 (+2.34%)
+- ETH: $3,120 (-0.80%)
+- S&P 500: 5,612 (+0.29%)
+
+ANALYSIS FRAMEWORK:
+1. Identify trend direction.
+2. Evaluate momentum, volatility, and sentiment.
+3. Highlight support/resistance zones.
+4. Mention breakout/reversal risks.
+5. Include risk-reward logic.
+6. Separate short/mid/long-term outlooks.
+7. Prioritize capital preservation.
+
+RESPONSE STYLE:
+- Institutional-grade analysis
+- Concise and actionable
+- Under 200 words unless detailed analysis requested
+- No filler or generic disclaimers
+- Use bullet points and structured outputs
+
+TRADE SETUPS MUST INCLUDE:
+- Direction
+- Entry
+- Stop Loss
+- Targets
+- Risk Level
+- Confidence Score
+- Time Horizon
+
+Always think like a hedge fund analyst, quantitative strategist, and elite trader combined.
+            `,
         })
 
-        const data = await response.json()
+        const result = await model.generateContent({
+            contents: formattedMessages,
+            generationConfig: {
+                temperature: 0.4,
+                topP: 0.9,
+                topK: 40,
+                maxOutputTokens: 1024,
+            },
+        })
 
-        // ADDED: Error handling to catch API rejections (e.g., bad keys, rate limits)
-        if (!response.ok) {
-            console.error("Anthropic API Error:", data)
-            return NextResponse.json(
-                { error: data.error?.message || 'Failed to fetch response from Anthropic' },
-                { status: response.status }
-            )
-        }
+        const response = result.response
+        const text = response.text()
 
         return NextResponse.json({
-            content: data.content?.[0]?.text || 'Unable to get response. Please check your API key.',
+            content: text || 'No response received.',
         })
-    } catch (error) {
-        console.error("Server Error:", error)
-        return NextResponse.json(
-            { error: 'Internal Server Error' },
-            { status: 500 }
-        )
+
+    } catch (err: any) {
+        console.error('Gemini Route Error:', err)
+
+        return NextResponse.json({
+            content: `Server Error: ${err.message}`,
+        })
     }
 }

@@ -1,11 +1,11 @@
 import Navbar from '@/components/Navbar'
-import AIAdvisor from '@/components/AIAdvisor'
+import BrokerConnect from '@/components/BrokerConnect'
 
-export default function AIAdvisorPage() {
+export default function BrokerPage() {
     return (
         <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
             <Navbar />
-            <AIAdvisor />
+            <BrokerConnect />
         </main>
     )
 }

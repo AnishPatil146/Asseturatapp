@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Badge from './ui/Badge'
 import OrderBook from './OrderBook'
 import TradePanel from './TradePanel'
+import StockDetailModal from './StockDetailModel'
 
 const HOLDINGS = [
     { asset: 'BTC', name: 'Bitcoin', qty: 0.42, avgPrice: 61200, curPrice: 67420, color: '#f7931a', ic: '₿' },
@@ -13,8 +14,17 @@ const HOLDINGS = [
     { asset: 'NVDA', name: 'Nvidia', qty: 5, avgPrice: 820, curPrice: 875, color: '#76b900', ic: 'N' },
 ]
 
+interface SelectedStock {
+    symbol: string
+    name: string
+    price: number
+    change: number
+    color: string
+}
+
 export default function Portfolio() {
     const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings')
+    const [selectedStock, setSelectedStock] = useState<SelectedStock | null>(null)
 
     const totalValue = HOLDINGS.reduce((s, h) => s + h.qty * h.curPrice, 0)
     const totalCost = HOLDINGS.reduce((s, h) => s + h.qty * h.avgPrice, 0)
@@ -46,28 +56,17 @@ export default function Portfolio() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     <button style={{
-                        padding: '8px 20px',
-                        borderRadius: '5px',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        border: 'none',
-                        background: 'var(--green2)',
-                        color: '#fff',
-                        fontFamily: 'var(--font-sans)',
+                        padding: '8px 20px', borderRadius: '5px', fontSize: '12px',
+                        fontWeight: 600, cursor: 'pointer', border: 'none',
+                        background: 'var(--green2)', color: '#fff', fontFamily: 'var(--font-sans)',
                     }}>
                         + Deposit
                     </button>
                     <button style={{
-                        padding: '8px 20px',
-                        borderRadius: '5px',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
+                        padding: '8px 20px', borderRadius: '5px', fontSize: '12px',
+                        fontWeight: 600, cursor: 'pointer',
                         border: '1px solid var(--border2)',
-                        background: 'transparent',
-                        color: 'var(--text2)',
-                        fontFamily: 'var(--font-sans)',
+                        background: 'transparent', color: 'var(--text2)', fontFamily: 'var(--font-sans)',
                     }}>
                         Withdraw
                     </button>
@@ -90,11 +89,8 @@ export default function Portfolio() {
                     {HOLDINGS.map((h) => (
                         <div key={h.asset} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <span style={{
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                background: h.color,
-                                display: 'inline-block',
+                                width: '6px', height: '6px', borderRadius: '50%',
+                                background: h.color, display: 'inline-block',
                             }} />
                             <span style={{ fontSize: '10px', color: 'var(--text3)' }}>
                                 {h.asset} {((h.qty * h.curPrice / totalValue) * 100).toFixed(1)}%
@@ -109,10 +105,8 @@ export default function Portfolio() {
 
                 {/* Holdings table */}
                 <div style={{
-                    background: 'var(--bg2)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    overflow: 'hidden',
+                    background: 'var(--bg2)', border: '1px solid var(--border)',
+                    borderRadius: '8px', overflow: 'hidden',
                 }}>
                     {/* Tabs */}
                     <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
@@ -164,26 +158,31 @@ export default function Portfolio() {
                         const pnl = (h.curPrice - h.avgPrice) * h.qty
                         const pct = ((h.curPrice - h.avgPrice) / h.avgPrice) * 100
                         return (
-                            <div key={h.asset} style={{
-                                display: 'grid',
-                                gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr',
-                                padding: '12px 16px',
-                                borderBottom: '1px solid var(--border)',
-                                cursor: 'pointer',
-                                transition: 'background 0.12s',
-                            }}>
+                            <div
+                                key={h.asset}
+                                onClick={() => setSelectedStock({
+                                    symbol: h.asset,
+                                    name: h.name,
+                                    price: h.curPrice,
+                                    change: pct,
+                                    color: h.color,
+                                })}
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr',
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid var(--border)',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.12s',
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg3)')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div style={{
-                                        width: '28px',
-                                        height: '28px',
-                                        borderRadius: '50%',
-                                        background: h.color,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: '11px',
-                                        fontWeight: 700,
-                                        color: '#fff',
+                                        width: '28px', height: '28px', borderRadius: '50%',
+                                        background: h.color, display: 'flex', alignItems: 'center',
+                                        justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff',
                                     }}>
                                         {h.ic}
                                     </div>
@@ -205,11 +204,7 @@ export default function Portfolio() {
                                     ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </div>
                                 <div style={{ textAlign: 'right', alignSelf: 'center' }}>
-                                    <div style={{
-                                        fontFamily: 'var(--font-mono)',
-                                        fontSize: '12px',
-                                        color: pnl >= 0 ? 'var(--green)' : 'var(--red)',
-                                    }}>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: pnl >= 0 ? 'var(--green)' : 'var(--red)' }}>
                                         {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
                                     </div>
                                     <Badge value={pct} />
@@ -226,7 +221,7 @@ export default function Portfolio() {
                     )}
                 </div>
 
-                {/* Right column: Trade + OrderBook */}
+                {/* Right column */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <TradePanel price={67420} />
                     <div style={{ flex: 1, minHeight: '300px' }}>
@@ -234,6 +229,14 @@ export default function Portfolio() {
                     </div>
                 </div>
             </div>
+
+            {/* Stock detail modal */}
+            {selectedStock && (
+                <StockDetailModal
+                    {...selectedStock}
+                    onClose={() => setSelectedStock(null)}
+                />
+            )}
         </div>
     )
 }

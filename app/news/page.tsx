@@ -1,11 +1,11 @@
 import Navbar from '@/components/Navbar'
-import AIAdvisor from '@/components/AIAdvisor'
+import News from '@/components/News'
 
-export default function AIAdvisorPage() {
+export default function NewsPage() {
     return (
         <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
             <Navbar />
-            <AIAdvisor />
+            <News />
         </main>
     )
 }

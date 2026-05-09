@@ -18,16 +18,22 @@ const SEARCH_RESULTS = [
     { symbol: 'BTC/USDT', name: 'Bitcoin', type: 'Crypto', color: '#f7931a', href: '/?asset=CRYPTO' },
     { symbol: 'ETH/USDT', name: 'Ethereum', type: 'Crypto', color: '#627eea', href: '/?asset=CRYPTO' },
     { symbol: 'SOL/USDT', name: 'Solana', type: 'Crypto', color: '#9945ff', href: '/?asset=CRYPTO' },
+    { symbol: 'BNB/USDT', name: 'BNB', type: 'Crypto', color: '#f3ba2f', href: '/?asset=CRYPTO' },
+    { symbol: 'DOGE/USDT', name: 'Dogecoin', type: 'Crypto', color: '#c2a633', href: '/?asset=CRYPTO' },
     { symbol: 'AAPL', name: 'Apple Inc.', type: 'Stock', color: '#4f8ef7', href: '/?asset=STOCKS' },
     { symbol: 'NVDA', name: 'Nvidia', type: 'Stock', color: '#76b900', href: '/?asset=STOCKS' },
     { symbol: 'TSLA', name: 'Tesla', type: 'Stock', color: '#e31937', href: '/?asset=STOCKS' },
     { symbol: 'MSFT', name: 'Microsoft', type: 'Stock', color: '#00a4ef', href: '/?asset=STOCKS' },
+    { symbol: 'GOOGL', name: 'Alphabet', type: 'Stock', color: '#4285f4', href: '/?asset=STOCKS' },
+    { symbol: 'AMZN', name: 'Amazon', type: 'Stock', color: '#ff9900', href: '/?asset=STOCKS' },
+    { symbol: 'META', name: 'Meta', type: 'Stock', color: '#1877f2', href: '/?asset=STOCKS' },
     { symbol: 'EUR/USD', name: 'Euro / Dollar', type: 'Forex', color: '#00d4a0', href: '/?asset=FOREX' },
-    { symbol: 'GBP/USD', name: 'British Pound', type: 'Forex', color: '#00d4a0', href: '/?asset=FOREX' },
+    { symbol: 'GBP/USD', name: 'Pound/Dollar', type: 'Forex', color: '#00d4a0', href: '/?asset=FOREX' },
+    { symbol: 'USD/JPY', name: 'Dollar/Yen', type: 'Forex', color: '#00d4a0', href: '/?asset=FOREX' },
     { symbol: 'SPX', name: 'S&P 500', type: 'Index', color: '#f5a623', href: '/?asset=OPTIONS' },
     { symbol: 'NDX', name: 'Nasdaq 100', type: 'Index', color: '#f5a623', href: '/?asset=OPTIONS' },
-    { symbol: 'Gold', name: 'Gold Futures', type: 'Futures', color: '#FFD700', href: '/' },
-    { symbol: 'Oil', name: 'Crude Oil', type: 'Futures', color: '#8b4513', href: '/' },
+    { symbol: 'Gold', name: 'Gold Futures', type: 'Futures', color: '#FFD700', href: '/?asset=OPTIONS' },
+    { symbol: 'Oil', name: 'Crude Oil', type: 'Futures', color: '#f5a623', href: '/?asset=OPTIONS' },
 ]
 
 const TYPE_COLORS: Record<string, string> = {
@@ -46,28 +52,34 @@ const TYPE_TEXT: Record<string, string> = {
     Futures: '#FFD700',
 }
 
+const CATEGORIES = ['All', 'Crypto', 'Stock', 'Forex', 'Index', 'Futures']
+
 export default function Navbar() {
     const pathname = usePathname()
     const router = useRouter()
-    const isMarketOpen = useMarketStore((s) => s.isMarketOpen)
+    const isMarketOpen = useMarketStore(s => s.isMarketOpen)
 
     const [search, setSearch] = useState('')
     const [searchOpen, setSearchOpen] = useState(false)
     const [profileOpen, setProfileOpen] = useState(false)
     const [searchFocus, setSearchFocus] = useState(false)
+    const [activeCategory, setActiveCategory] = useState('All')
 
     const searchRef = useRef<HTMLDivElement>(null)
     const profileRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    const filtered = SEARCH_RESULTS.filter(r =>
-        search.length === 0 ? true :
-            r.symbol.toLowerCase().includes(search.toLowerCase()) ||
+    const filtered = SEARCH_RESULTS.filter(r => {
+        const matchCat = activeCategory === 'All' || r.type === activeCategory
+        const matchText = search.length === 0
+            ? true
+            : r.symbol.toLowerCase().includes(search.toLowerCase()) ||
             r.name.toLowerCase().includes(search.toLowerCase()) ||
             r.type.toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 8)
+        return matchCat && matchText
+    }).slice(0, 8)
 
-    // Close dropdowns on outside click
+    // Close on outside click
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -82,10 +94,26 @@ export default function Navbar() {
         return () => document.removeEventListener('mousedown', handler)
     }, [])
 
+    // Ctrl+K shortcut
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault()
+                setSearchOpen(true)
+                setSearchFocus(true)
+                setTimeout(() => inputRef.current?.focus(), 50)
+            }
+        }
+        document.addEventListener('keydown', handler)
+        return () => document.removeEventListener('keydown', handler)
+    }, [])
+
     const handleSearchSelect = (href: string) => {
         setSearch('')
         setSearchOpen(false)
         setSearchFocus(false)
+        setActiveCategory('All')
+        inputRef.current?.blur()
         router.push(href)
     }
 
@@ -94,6 +122,7 @@ export default function Navbar() {
             setSearchOpen(false)
             setSearchFocus(false)
             setSearch('')
+            setActiveCategory('All')
         }
         if (e.key === 'Enter' && filtered.length > 0) {
             handleSearchSelect(filtered[0].href)
@@ -109,7 +138,7 @@ export default function Navbar() {
                 display: 'flex',
                 alignItems: 'center',
                 padding: '0 20px',
-                gap: '20px',
+                gap: '16px',
                 position: 'sticky',
                 top: 0,
                 zIndex: 200,
@@ -157,7 +186,7 @@ export default function Navbar() {
                 {/* Right side */}
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
 
-                    {/* Live indicator */}
+                    {/* Live dot */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                         <span style={{
                             width: '7px',
@@ -179,28 +208,35 @@ export default function Navbar() {
 
                     {/* Search */}
                     <div ref={searchRef} style={{ position: 'relative' }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            background: searchFocus ? '#1a1e2a' : '#141720',
-                            border: `1px solid ${searchFocus ? '#252b3d' : '#1e2333'}`,
-                            borderRadius: '6px',
-                            padding: '0 12px',
-                            height: '30px',
-                            width: searchFocus ? '220px' : '160px',
-                            transition: 'all 0.2s',
-                            cursor: 'text',
-                        }}
+                        <div
                             onClick={() => {
                                 setSearchOpen(true)
                                 setSearchFocus(true)
                                 inputRef.current?.focus()
                             }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                background: searchFocus ? '#1a1e2a' : '#141720',
+                                border: `1px solid ${searchFocus ? '#4f8ef7' : '#1e2333'}`,
+                                borderRadius: '6px',
+                                padding: '0 12px',
+                                height: '30px',
+                                width: searchFocus ? '220px' : '160px',
+                                transition: 'all 0.2s',
+                                cursor: 'text',
+                            }}
                         >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4a5470" strokeWidth="2.5" strokeLinecap="round">
-                                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                            <svg
+                                width="12" height="12" viewBox="0 0 24 24"
+                                fill="none" stroke={searchFocus ? '#4f8ef7' : '#4a5470'}
+                                strokeWidth="2.5" strokeLinecap="round"
+                            >
+                                <circle cx="11" cy="11" r="8" />
+                                <path d="m21 21-4.35-4.35" />
                             </svg>
+
                             <input
                                 ref={inputRef}
                                 value={search}
@@ -219,10 +255,35 @@ export default function Navbar() {
                                     cursor: 'text',
                                 }}
                             />
+
+                            <span style={{
+                                fontSize: '9px',
+                                color: '#4a5470',
+                                whiteSpace: 'nowrap',
+                                letterSpacing: '0.5px',
+                                flexShrink: 0,
+                            }}>
+                                ⌘K
+                            </span>
+
                             {search && (
                                 <button
-                                    onClick={e => { e.stopPropagation(); setSearch(''); inputRef.current?.focus() }}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#4a5470', fontSize: '14px', lineHeight: 1 }}
+                                    onClick={e => {
+                                        e.stopPropagation()
+                                        setSearch('')
+                                        inputRef.current?.focus()
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: 0,
+                                        color: '#4a5470',
+                                        fontSize: '16px',
+                                        lineHeight: 1,
+                                        marginLeft: '2px',
+                                        flexShrink: 0,
+                                    }}
                                 >
                                     ×
                                 </button>
@@ -235,29 +296,36 @@ export default function Navbar() {
                                 position: 'absolute',
                                 top: '38px',
                                 right: 0,
-                                width: '300px',
+                                width: '320px',
                                 background: '#0e1117',
                                 border: '1px solid #1e2333',
-                                borderRadius: '8px',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                borderRadius: '10px',
+                                boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
                                 overflow: 'hidden',
                                 zIndex: 300,
                             }}>
+
                                 {/* Category pills */}
-                                <div style={{ padding: '8px 12px', borderBottom: '1px solid #1e2333', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {['All', 'Crypto', 'Stock', 'Forex', 'Index'].map(cat => (
+                                <div style={{
+                                    padding: '10px 12px',
+                                    borderBottom: '1px solid #1e2333',
+                                    display: 'flex',
+                                    gap: '6px',
+                                    flexWrap: 'wrap',
+                                }}>
+                                    {CATEGORIES.map(cat => (
                                         <button
                                             key={cat}
-                                            onClick={() => setSearch(cat === 'All' ? '' : cat)}
+                                            onClick={() => setActiveCategory(cat)}
                                             style={{
-                                                padding: '2px 10px',
+                                                padding: '3px 12px',
                                                 borderRadius: '20px',
                                                 fontSize: '10px',
                                                 fontWeight: 500,
                                                 cursor: 'pointer',
-                                                border: '1px solid #1e2333',
-                                                background: 'transparent',
-                                                color: '#7b88aa',
+                                                border: `1px solid ${activeCategory === cat ? '#4f8ef7' : '#1e2333'}`,
+                                                background: activeCategory === cat ? 'rgba(79,142,247,0.15)' : 'transparent',
+                                                color: activeCategory === cat ? '#4f8ef7' : '#7b88aa',
                                                 fontFamily: 'DM Sans,sans-serif',
                                                 transition: 'all 0.12s',
                                             }}
@@ -268,48 +336,65 @@ export default function Navbar() {
                                 </div>
 
                                 {/* Results */}
-                                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                     {filtered.length === 0 ? (
-                                        <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: '#4a5470' }}>
-                                            No results for &ldquo;{search}&rdquo;
+                                        <div style={{
+                                            padding: '24px',
+                                            textAlign: 'center',
+                                            fontSize: '12px',
+                                            color: '#4a5470',
+                                        }}>
+                                            {search
+                                                ? `No results for "${search}"`
+                                                : `No ${activeCategory} assets`}
                                         </div>
                                     ) : (
                                         filtered.map((r, i) => (
                                             <div
                                                 key={i}
                                                 onClick={() => handleSearchSelect(r.href)}
+                                                onMouseEnter={e => (e.currentTarget.style.background = '#141720')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                                 style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    padding: '10px 12px',
-                                                    gap: '10px',
+                                                    padding: '10px 14px',
+                                                    gap: '12px',
                                                     cursor: 'pointer',
-                                                    borderBottom: i < filtered.length - 1 ? '1px solid #1e2333' : 'none',
+                                                    borderBottom: i < filtered.length - 1 ? '1px solid #1a1e2a' : 'none',
                                                     transition: 'background 0.12s',
                                                 }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = '#141720')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                             >
+                                                {/* Icon */}
                                                 <div style={{
-                                                    width: '32px',
-                                                    height: '32px',
+                                                    width: '34px',
+                                                    height: '34px',
                                                     borderRadius: '50%',
-                                                    background: r.color + '22',
-                                                    border: `1px solid ${r.color}44`,
+                                                    background: r.color + '18',
+                                                    border: `1px solid ${r.color}40`,
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    fontSize: '11px',
+                                                    fontSize: '12px',
                                                     fontWeight: 700,
                                                     color: r.color,
                                                     flexShrink: 0,
+                                                    fontFamily: 'DM Mono,monospace',
                                                 }}>
                                                     {r.symbol[0]}
                                                 </div>
+
+                                                {/* Info */}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontSize: '13px', fontWeight: 500, color: '#e2e8f7' }}>{r.symbol}</div>
-                                                    <div style={{ fontSize: '10px', color: '#4a5470' }}>{r.name}</div>
+                                                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f7' }}>
+                                                        {r.symbol}
+                                                    </div>
+                                                    <div style={{ fontSize: '11px', color: '#4a5470', marginTop: '1px' }}>
+                                                        {r.name}
+                                                    </div>
                                                 </div>
+
+                                                {/* Type badge */}
                                                 <span style={{
                                                     padding: '2px 8px',
                                                     borderRadius: '4px',
@@ -318,6 +403,7 @@ export default function Navbar() {
                                                     background: TYPE_COLORS[r.type] || '#1a1e2a',
                                                     color: TYPE_TEXT[r.type] || '#7b88aa',
                                                     flexShrink: 0,
+                                                    letterSpacing: '0.3px',
                                                 }}>
                                                     {r.type}
                                                 </span>
@@ -326,9 +412,18 @@ export default function Navbar() {
                                     )}
                                 </div>
 
-                                <div style={{ padding: '8px 12px', borderTop: '1px solid #1e2333', fontSize: '10px', color: '#4a5470', display: 'flex', justifyContent: 'space-between' }}>
+                                {/* Footer hints */}
+                                <div style={{
+                                    padding: '8px 14px',
+                                    borderTop: '1px solid #1e2333',
+                                    fontSize: '10px',
+                                    color: '#3a3f52',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    background: '#0a0c14',
+                                }}>
                                     <span>↑↓ navigate</span>
-                                    <span>↵ select</span>
+                                    <span>↵ open</span>
                                     <span>esc close</span>
                                 </div>
                             </div>
@@ -343,13 +438,15 @@ export default function Navbar() {
                                 width: '32px',
                                 height: '32px',
                                 borderRadius: '50%',
-                                background: profileOpen ? '#4f8ef7' : '#1a1e2a',
+                                background: profileOpen
+                                    ? 'linear-gradient(135deg,#4f8ef7,#8b5cf6)'
+                                    : 'linear-gradient(135deg,#1a1e2a,#252b3d)',
                                 border: `1px solid ${profileOpen ? '#4f8ef7' : '#252b3d'}`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 fontSize: '12px',
-                                fontWeight: 600,
+                                fontWeight: 700,
                                 color: '#fff',
                                 cursor: 'pointer',
                                 transition: 'all 0.15s',
@@ -363,38 +460,85 @@ export default function Navbar() {
                         {profileOpen && (
                             <div style={{
                                 position: 'absolute',
-                                top: '40px',
+                                top: '42px',
                                 right: 0,
-                                width: '220px',
+                                width: '240px',
                                 background: '#0e1117',
                                 border: '1px solid #1e2333',
-                                borderRadius: '10px',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                                borderRadius: '12px',
+                                boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
                                 overflow: 'hidden',
                                 zIndex: 300,
                             }}>
 
                                 {/* User info */}
-                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e2333' }}>
+                                <div style={{ padding: '16px', borderBottom: '1px solid #1e2333' }}>
                                     <div style={{
-                                        width: '38px', height: '38px', borderRadius: '50%',
+                                        width: '42px',
+                                        height: '42px',
+                                        borderRadius: '50%',
                                         background: 'linear-gradient(135deg,#4f8ef7,#8b5cf6)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '8px',
-                                    }}>A</div>
-                                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f7' }}>Anish</div>
-                                    <div style={{ fontSize: '11px', color: '#4a5470', marginTop: '2px' }}>Pro Trader</div>
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '18px',
+                                        fontWeight: 700,
+                                        color: '#fff',
+                                        marginBottom: '10px',
+                                    }}>
+                                        A
+                                    </div>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f7' }}>Anish</div>
+                                    <div style={{ fontSize: '11px', color: '#4a5470', marginTop: '2px' }}>Pro Trader · Assetura</div>
                                 </div>
 
-                                {/* Portfolio summary */}
-                                <div style={{ padding: '10px 16px', borderBottom: '1px solid #1e2333', background: '#0a0c14' }}>
-                                    <div style={{ fontSize: '10px', color: '#4a5470', marginBottom: '6px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Portfolio</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                        <span style={{ fontFamily: 'DM Mono,monospace', fontSize: '16px', fontWeight: 600, color: '#e2e8f7' }}>$47,469</span>
-                                        <span style={{ fontFamily: 'DM Mono,monospace', fontSize: '11px', color: '#00d4a0' }}>+6.43%</span>
+                                {/* Portfolio card */}
+                                <div style={{
+                                    padding: '12px 16px',
+                                    borderBottom: '1px solid #1e2333',
+                                    background: '#0a0c14',
+                                }}>
+                                    <div style={{
+                                        fontSize: '10px',
+                                        color: '#4a5470',
+                                        marginBottom: '6px',
+                                        letterSpacing: '0.5px',
+                                        textTransform: 'uppercase',
+                                    }}>
+                                        Portfolio Value
                                     </div>
-                                    <div style={{ height: '3px', borderRadius: '2px', background: '#1e2333', marginTop: '6px', overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: '65%', background: 'linear-gradient(90deg,#4f8ef7,#00d4a0)', borderRadius: '2px' }} />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                                        <span style={{ fontFamily: 'DM Mono,monospace', fontSize: '18px', fontWeight: 600, color: '#e2e8f7' }}>
+                                            $47,469
+                                        </span>
+                                        <span style={{ fontFamily: 'DM Mono,monospace', fontSize: '11px', color: '#00d4a0' }}>
+                                            +$2,869 · +6.43%
+                                        </span>
+                                    </div>
+                                    <div style={{
+                                        height: '4px',
+                                        borderRadius: '2px',
+                                        background: '#1e2333',
+                                        overflow: 'hidden',
+                                        display: 'flex',
+                                        gap: '2px',
+                                    }}>
+                                        <div style={{ width: '59%', background: '#f7931a', borderRadius: '2px' }} />
+                                        <div style={{ width: '23%', background: '#627eea', borderRadius: '2px' }} />
+                                        <div style={{ width: '9%', background: '#76b900', borderRadius: '2px' }} />
+                                        <div style={{ flex: 1, background: '#4f8ef7', borderRadius: '2px' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
+                                        {[
+                                            { label: 'BTC', color: '#f7931a' },
+                                            { label: 'ETH', color: '#627eea' },
+                                            { label: 'NVDA', color: '#76b900' },
+                                        ].map(a => (
+                                            <div key={a.label} style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: a.color, display: 'inline-block' }} />
+                                                <span style={{ fontSize: '9px', color: '#4a5470' }}>{a.label}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -405,32 +549,38 @@ export default function Navbar() {
                                     { icon: '🔔', label: 'Notifications', href: '/' },
                                     { icon: '🔗', label: 'Connect Broker', href: '/broker' },
                                     { icon: '🤖', label: 'AI Advisor', href: '/ai-advisor' },
-                                ].map((item, i) => (
+                                    { icon: '📰', label: 'Market News', href: '/news' },
+                                ].map((item, i, arr) => (
                                     <Link key={i} href={item.href} style={{ textDecoration: 'none' }}>
                                         <div
                                             onClick={() => setProfileOpen(false)}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.background = '#141720'
+                                                const label = e.currentTarget.querySelector('.menu-label') as HTMLElement
+                                                if (label) label.style.color = '#e2e8f7'
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.background = 'transparent'
+                                                const label = e.currentTarget.querySelector('.menu-label') as HTMLElement
+                                                if (label) label.style.color = '#7b88aa'
+                                            }}
                                             style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '10px',
                                                 padding: '10px 16px',
-                                                fontSize: '12px',
-                                                color: '#7b88aa',
                                                 cursor: 'pointer',
                                                 transition: 'all 0.12s',
-                                                borderBottom: i < 4 ? '1px solid #1e2333' : 'none',
-                                            }}
-                                            onMouseEnter={e => {
-                                                e.currentTarget.style.background = '#141720'
-                                                e.currentTarget.style.color = '#e2e8f7'
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.background = 'transparent'
-                                                e.currentTarget.style.color = '#7b88aa'
+                                                borderBottom: i < arr.length - 1 ? '1px solid #1a1e2a' : 'none',
                                             }}
                                         >
-                                            <span style={{ fontSize: '14px' }}>{item.icon}</span>
-                                            {item.label}
+                                            <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>
+                                                {item.icon}
+                                            </span>
+                                            <span className="menu-label" style={{ fontSize: '12px', color: '#7b88aa', transition: 'color 0.12s' }}>
+                                                {item.label}
+                                            </span>
+                                            <span style={{ marginLeft: 'auto', fontSize: '10px', color: '#3a3f52' }}>›</span>
                                         </div>
                                     </Link>
                                 ))}
@@ -438,6 +588,8 @@ export default function Navbar() {
                                 {/* Sign out */}
                                 <div
                                     onClick={() => setProfileOpen(false)}
+                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,77,106,0.08)')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -449,10 +601,8 @@ export default function Navbar() {
                                         transition: 'all 0.12s',
                                         borderTop: '1px solid #1e2333',
                                     }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,77,106,0.08)')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                 >
-                                    <span style={{ fontSize: '14px' }}>🚪</span>
+                                    <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>🚪</span>
                                     Sign Out
                                 </div>
                             </div>
@@ -463,8 +613,8 @@ export default function Navbar() {
 
             <style>{`
         @keyframes pulse {
-          0%,100% { opacity:1; }
-          50%      { opacity:0.4; }
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.35; }
         }
       `}</style>
         </>

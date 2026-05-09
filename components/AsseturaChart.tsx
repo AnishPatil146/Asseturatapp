@@ -38,6 +38,7 @@ interface Props {
   symbolOverride?: string
   labelOverride?: string
   basePriceOverride?: number
+  height?: number
 }
 
 const s = { // style helpers
@@ -83,8 +84,10 @@ export default function AsseturaChart({ assetType = 'CRYPTO', symbolOverride, la
   const stats = useMemo(() => {
     if (!visCandles.length) return { open: 0, high: 0, low: 0, close: 0, volume: 0, change: 0, changePct: 0, isPos: true }
     const f = visCandles[0], l = visCandles[visCandles.length - 1], ch = l.close - f.open
-    return { open: f.open, high: Math.max(...visCandles.map(c => c.high)), low: Math.min(...visCandles.map(c => c.low)),
-      close: l.close, volume: visCandles.reduce((a, c) => a + c.volume, 0), change: ch, changePct: (ch / f.open) * 100, isPos: ch >= 0 }
+    return {
+      open: f.open, high: Math.max(...visCandles.map(c => c.high)), low: Math.min(...visCandles.map(c => c.low)),
+      close: l.close, volume: visCandles.reduce((a, c) => a + c.volume, 0), change: ch, changePct: (ch / f.open) * 100, isPos: ch >= 0
+    }
   }, [visCandles])
 
   // Precompute all indicator data
@@ -110,7 +113,7 @@ export default function AsseturaChart({ assetType = 'CRYPTO', symbolOverride, la
     let cancelled = false
 
     // Map our timeframe to API interval format
-    const intervalMap: Record<string, string> = { '1m':'1m','5m':'5m','15m':'15m','1h':'1h','4h':'4h','1D':'1D','1W':'1W' }
+    const intervalMap: Record<string, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1D': '1D', '1W': '1W' }
     const apiInterval = intervalMap[timeframe] || '1h'
 
     // Fetch real historical data
@@ -293,9 +296,11 @@ export default function AsseturaChart({ assetType = 'CRYPTO', symbolOverride, la
           onMouseMove={onMouseMove} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onMouseLeave={onMouseLeave} onWheel={onWheel} />
         {/* HUD */}
         {hud.visible && hud.candle && (
-          <div style={{ position: 'absolute', left: hud.x, top: hud.y, background: T.hud, border: `1px solid ${T.hudBorder}`,
+          <div style={{
+            position: 'absolute', left: hud.x, top: hud.y, background: T.hud, border: `1px solid ${T.hudBorder}`,
             borderRadius: '6px', padding: '8px 12px', pointerEvents: 'none', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            zIndex: 99, minWidth: '155px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
+            zIndex: 99, minWidth: '155px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '9px', color: T.textMuted, letterSpacing: '0.5px' }}>{label.split(/[·/]/)[0].trim()}</span>
               <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '11px', fontWeight: 600, color: hud.candle.close >= hud.candle.open ? T.bull : T.bear }}>

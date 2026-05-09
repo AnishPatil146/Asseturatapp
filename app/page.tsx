@@ -1,18 +1,24 @@
-'use client'
-
+import { Suspense } from 'react'
 import Navbar from '@/components/Navbar'
-import LiveTicker from '@/components/LiveTicker'
-import MarketSummary from '@/components/MarketSummary'
-import AuthGuard from '@/components/AuthGuard'
+import HomeClient from '@/components/HomeClient'
 
 export default function HomePage() {
   return (
-    <AuthGuard>
-      <main style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-        <Navbar />
-        <LiveTicker />
-        <MarketSummary />
-      </main>
-    </AuthGuard>
+    <main style={{ minHeight: '100vh', background: '#08090d' }}>
+      <Navbar />
+      <Suspense fallback={
+        <div style={{
+          padding: '40px 20px',
+          color: '#4a5470',
+          fontFamily: 'DM Mono,monospace',
+          fontSize: '12px',
+          letterSpacing: '1px',
+        }}>
+          LOADING...
+        </div>
+      }>
+        <HomeClient />
+      </Suspense>
+    </main>
   )
 }

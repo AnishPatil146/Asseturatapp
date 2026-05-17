@@ -24,7 +24,19 @@ import { THEME } from '@/lib/engine/theme'
 import { formatPrice, formatTime, formatDateTime, pctChange } from '@/lib/engine/precision'
 import type { OHLCV, ChartType } from '@/lib/engine/types'
 
-const BAR_MS = 5 * 60 * 1000
+function getBarMs(tf: string) {
+  switch (tf) {
+    case '1m': return 60 * 1000
+    case '5m': return 5 * 60 * 1000
+    case '15m': return 15 * 60 * 1000
+    case '1h': return 60 * 60 * 1000
+    case '4h': return 4 * 60 * 60 * 1000
+    case '1D': return 24 * 60 * 60 * 1000
+    case '1W': return 7 * 24 * 60 * 60 * 1000
+    case '1M': return 30 * 24 * 60 * 60 * 1000
+    default: return 5 * 60 * 1000
+  }
+}
 
 const CHART_TYPES: { type: ChartType; label: string }[] = [
   { type: 'candlestick', label: 'Candle' },
@@ -43,6 +55,7 @@ interface Props {
   symbolOverride?: string
   labelOverride?: string
   basePriceOverride?: number
+  timeframeOverride?: string
 }
 
 export default function AsseturaChart({
@@ -51,6 +64,7 @@ export default function AsseturaChart({
   symbolOverride,
   labelOverride,
   basePriceOverride,
+  timeframeOverride,
 }: Props) {
   const baseCfg = SYMBOL_CONFIG[assetType]
   const cfg = {
@@ -84,8 +98,9 @@ export default function AsseturaChart({
   // Global store
   const chartType = useTradingStore(s => s.chartType)
   const setChartType = useTradingStore(s => s.setChartType)
-  const timeframe = useTradingStore(s => s.timeframe)
+  const globalTimeframe = useTradingStore(s => s.timeframe)
   const setTimeframe = useTradingStore(s => s.setTimeframe)
+  const timeframe = timeframeOverride ?? globalTimeframe
   const indicatorResults = useTradingStore(s => s.indicatorResults)
   const indicatorConfigs = useTradingStore(s => s.indicatorConfigs)
 
@@ -97,9 +112,9 @@ export default function AsseturaChart({
 
   // ── Initialize ──────────────────────────────────────────
   useEffect(() => {
-    setCandles(generateCandles(cfg.basePrice, 200))
+    setCandles(generateCandles(cfg.basePrice, 200, getBarMs(timeframe)))
     setMounted(true)
-  }, [cfg.basePrice])
+  }, [cfg.basePrice, timeframe])
 
   // ── Measure container ──────────────────────────────────
   useLayoutEffect(() => {
@@ -124,9 +139,9 @@ export default function AsseturaChart({
       close: c.close,
       volume: c.volume,
     }))
-    mapperRef.current = buildMapper(ohlcv, size.w, size.h, 120, BAR_MS)
+    mapperRef.current = buildMapper(ohlcv, size.w, size.h, 120, getBarMs(timeframe))
     isDirty.current = true
-  }, [candles, size])
+  }, [candles, size, timeframe])
 
   // ── Sync candles to global store ───────────────────────
   useEffect(() => {
@@ -147,8 +162,13 @@ export default function AsseturaChart({
 
     wsManager.connect(symbol, provider, (msg) => {
       if (symRef.current !== symbol) return
+      
+      const barMs = getBarMs(timeframe)
+      // Quantize the incoming message time (or current time) to the selected timeframe
+      const barTime = Math.floor(Date.now() / barMs) * barMs
+
       const nc: NormalizedCandle = {
-        time: msg.time,
+        time: barTime,
         open: msg.open,
         high: msg.high,
         low: msg.low,
@@ -158,7 +178,7 @@ export default function AsseturaChart({
       setCandles(prev => mergeCandle(prev, nc))
       setStatus(provider === 'binance' ? 'live' : 'simulated')
       isDirty.current = true
-    })
+    }, cfg.basePrice)
 
     return () => { wsManager.disconnect() }
   }, [symbol, provider, mounted])
@@ -219,7 +239,7 @@ export default function AsseturaChart({
     }))
 
     // Render chart
-    renderChart(ctx, mapper, ohlcv, chartType, BAR_MS)
+    renderChart(ctx, mapper, ohlcv, chartType, getBarMs(timeframe))
 
     // Render indicator overlays
     for (const result of indicatorResults) {
@@ -291,7 +311,7 @@ export default function AsseturaChart({
         timestamp: c.time, open: c.open, high: c.high,
         low: c.low, close: c.close, volume: c.volume,
       }))
-      const vis = mapper.getVisibleCandles(ohlcv, BAR_MS)
+      const vis = mapper.getVisibleCandles(ohlcv, getBarMs(timeframe))
       mapper.autoScaleY(vis)
 
       // Track velocity for kinetic scrolling
@@ -363,7 +383,7 @@ export default function AsseturaChart({
 
       const curRange = mapper.xMax - mapper.xMin
       const newRange = curRange * factor
-      if (newRange < BAR_MS * 8 || newRange > BAR_MS * candles.length * 2) return
+      if (newRange < getBarMs(timeframe) * 8 || newRange > getBarMs(timeframe) * candles.length * 2) return
 
       const xMin = pivot - (pivot - mapper.xMin) * factor
       const xMax = pivot + (mapper.xMax - pivot) * factor
@@ -375,7 +395,7 @@ export default function AsseturaChart({
         timestamp: c.time, open: c.open, high: c.high,
         low: c.low, close: c.close, volume: c.volume,
       }))
-      const vis = mapper.getVisibleCandles(ohlcv, BAR_MS)
+      const vis = mapper.getVisibleCandles(ohlcv, getBarMs(timeframe))
       mapper.autoScaleY(vis)
 
       isDirty.current = true

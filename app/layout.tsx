@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import GlobalModals from '@/components/GlobalModals'
 
 export const metadata: Metadata = {
   title: 'Assetura — Multi-Asset Trading Platform',
@@ -19,6 +20,7 @@ export default function RootLayout({
         minHeight: '100vh',
       }}>
         {children}
+        <GlobalModals />
       </body>
     </html>
   )

@@ -87,3 +87,21 @@ export interface OrderRequest {
   stopPrice?: number   // for stop / OCO
   limitPrice?: number  // for OCO
 }
+
+export type TradeStatus = 'filled' | 'pending' | 'cancelled' | 'rejected'
+
+export interface TradeRecord {
+  id: string
+  symbol: string
+  side: 'buy' | 'sell'
+  type: OrderType
+  qty: number
+  price: number          // execution / limit price
+  fillPrice: number      // actual fill price
+  total: number          // qty × fillPrice
+  fee: number            // simulated commission
+  pnl: number            // realized PnL (0 for opens)
+  status: TradeStatus
+  timestamp: number      // execution time (unix ms)
+  assetType: string      // CRYPTO | STOCKS | FOREX | OPTIONS
+}

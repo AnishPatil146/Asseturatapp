@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useMarketStore } from '@/lib/store/useMarketStore'
+import { useTradingStore } from '@/lib/store/useTradingStore'
 
 const NAV = [
     { label: 'Markets', href: '/' },
@@ -58,6 +59,7 @@ export default function Navbar() {
     const pathname = usePathname()
     const router = useRouter()
     const isMarketOpen = useMarketStore(s => s.isMarketOpen)
+    const setSelectedStock = useTradingStore(s => s.setSelectedStock)
 
     const [search, setSearch] = useState('')
     const [searchOpen, setSearchOpen] = useState(false)
@@ -108,13 +110,27 @@ export default function Navbar() {
         return () => document.removeEventListener('keydown', handler)
     }, [])
 
-    const handleSearchSelect = (href: string) => {
+    const handleSearchSelect = (item: typeof SEARCH_RESULTS[0]) => {
         setSearch('')
         setSearchOpen(false)
         setSearchFocus(false)
         setActiveCategory('All')
         inputRef.current?.blur()
-        router.push(href)
+        
+        // Mock current price based on type for the demo modal
+        const mockPrice = item.type === 'Crypto' ? (item.symbol.includes('BTC') ? 67420 : 3120) :
+                         item.type === 'Stock' ? (item.symbol === 'AAPL' ? 189 : 450) :
+                         item.type === 'Forex' ? 1.08 : 5100
+        const mockChange = (Math.random() * 4) - 1.5
+
+        setSelectedStock({
+            symbol: item.symbol,
+            name: item.name,
+            price: mockPrice,
+            change: mockChange,
+            color: item.color,
+            type: item.type
+        })
     }
 
     const handleSearchKey = (e: React.KeyboardEvent) => {
@@ -125,7 +141,7 @@ export default function Navbar() {
             setActiveCategory('All')
         }
         if (e.key === 'Enter' && filtered.length > 0) {
-            handleSearchSelect(filtered[0].href)
+            handleSearchSelect(filtered[0])
         }
     }
 
@@ -352,7 +368,7 @@ export default function Navbar() {
                                         filtered.map((r, i) => (
                                             <div
                                                 key={i}
-                                                onClick={() => handleSearchSelect(r.href)}
+                                                onClick={() => handleSearchSelect(r)}
                                                 onMouseEnter={e => (e.currentTarget.style.background = '#141720')}
                                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                                 style={{
@@ -544,12 +560,12 @@ export default function Navbar() {
 
                                 {/* Menu items */}
                                 {[
-                                    { icon: '👤', label: 'Profile Settings', href: '/profile' },
-                                    { icon: '📊', label: 'Trading History', href: '/portfolio' },
-                                    { icon: '🔔', label: 'Notifications', href: '/' },
-                                    { icon: '🔗', label: 'Connect Broker', href: '/broker' },
-                                    { icon: '🤖', label: 'AI Advisor', href: '/ai-advisor' },
-                                    { icon: '📰', label: 'Market News', href: '/news' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, label: 'Profile Settings', href: '/profile' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>, label: 'Trading History', href: '/portfolio' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>, label: 'Notifications', href: '/' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>, label: 'Connect Broker', href: '/broker' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 10v4"/><path d="M15 10v4"/></svg>, label: 'AI Advisor', href: '/ai-advisor' },
+                                    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>, label: 'Market News', href: '/news' },
                                 ].map((item, i, arr) => (
                                     <Link key={i} href={item.href} style={{ textDecoration: 'none' }}>
                                         <div
@@ -574,7 +590,7 @@ export default function Navbar() {
                                                 borderBottom: i < arr.length - 1 ? '1px solid #1a1e2a' : 'none',
                                             }}
                                         >
-                                            <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', color: '#7b88aa' }}>
                                                 {item.icon}
                                             </span>
                                             <span className="menu-label" style={{ fontSize: '12px', color: '#7b88aa', transition: 'color 0.12s' }}>
@@ -602,7 +618,9 @@ export default function Navbar() {
                                         borderTop: '1px solid #1e2333',
                                     }}
                                 >
-                                    <span style={{ fontSize: '15px', width: '20px', textAlign: 'center' }}>🚪</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px' }}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                                    </span>
                                     Sign Out
                                 </div>
                             </div>

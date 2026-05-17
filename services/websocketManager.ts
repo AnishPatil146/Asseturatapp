@@ -19,27 +19,30 @@ class WebSocketManager {
     private mockTimer: ReturnType<typeof setInterval> | null = null
     private shouldReconnect: boolean = false
 
-    connect(symbol: string, provider: string, onMessage: MessageHandler) {
-        console.log('[WSManager] connect', { symbol, provider })
+    connect(symbol: string, provider: string, onMessage: MessageHandler, basePrice?: number) {
+        console.log('[WSManager] connect', { symbol, provider, basePrice })
         this.disconnect()
         this.activeSymbol = symbol
         this.activeProvider = provider
         this.handler = onMessage
         this.shouldReconnect = true
-        this.openConnection()
+        this.openConnection(basePrice)
     }
 
-    private openConnection() {
+    private openConnection(basePrice?: number) {
         const symbol = this.activeSymbol
-        const provider = this.activeProvider
+        let provider = this.activeProvider
+
+        // Fix binance symbol format (remove slashes)
+        const cleanSymbol = symbol.replace('/', '').toLowerCase()
 
         if (provider !== 'binance') {
-            this.startMockStream(symbol)
+            this.startMockStream(symbol, basePrice)
             return
         }
 
         try {
-            const url = `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@kline_5m`
+            const url = `wss://stream.binance.com:9443/ws/${cleanSymbol}@kline_5m`
             this.ws = new WebSocket(url)
 
             this.ws.onopen = () => {
@@ -66,7 +69,7 @@ class WebSocketManager {
             this.ws.onclose = () => {
                 console.log('[WSManager] binance closed', symbol)
                 if (this.shouldReconnect && this.activeSymbol === symbol) {
-                    this.reconnectTimer = setTimeout(() => this.openConnection(), 3000)
+                    this.reconnectTimer = setTimeout(() => this.openConnection(basePrice), 3000)
                 }
             }
 
@@ -74,11 +77,11 @@ class WebSocketManager {
 
         } catch (err) {
             console.error('[WSManager] WS error:', err)
-            this.startMockStream(symbol)
+            this.startMockStream(symbol, basePrice)
         }
     }
 
-    private startMockStream(symbol: string) {
+    private startMockStream(symbol: string, basePrice?: number) {
         console.log('[WSManager] mock stream', symbol)
         if (this.mockTimer) clearInterval(this.mockTimer)
 
@@ -94,7 +97,7 @@ class WebSocketManager {
             DEFAULT: 100,
         }
 
-        let price = BASES[symbol] ?? BASES['DEFAULT']
+        let price = basePrice ?? BASES[symbol] ?? BASES['DEFAULT']
 
         this.mockTimer = setInterval(() => {
             if (this.activeSymbol !== symbol) {

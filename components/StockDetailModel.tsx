@@ -54,7 +54,6 @@ const STATS = [
 export default function StockDetailModal({
     symbol, name, price, change, color, onClose,
 }: Props) {
-    const [tf, setTf] = useState('1h')
     const [tab, setTab] = useState<'chart' | 'indicators' | 'news'>('chart')
 
     const assetType = resolveAssetType(symbol)
@@ -169,30 +168,7 @@ export default function StockDetailModal({
                         ))}
                     </div>
 
-                    {/* Timeframes — chart tab only */}
-                    {tab === 'chart' && (
-                        <div style={{ display: 'flex', gap: '2px', marginLeft: '12px' }}>
-                            {TIMEFRAMES.map(t => (
-                                <button
-                                    key={t}
-                                    onClick={() => setTf(t)}
-                                    style={{
-                                        padding: '3px 8px',
-                                        borderRadius: '3px',
-                                        fontSize: '11px',
-                                        cursor: 'pointer',
-                                        border: 'none',
-                                        background: tf === t ? '#1a1e2a' : 'transparent',
-                                        color: tf === t ? '#00FF88' : '#4a5470',
-                                        fontFamily: 'DM Mono,monospace',
-                                        transition: 'all 0.12s',
-                                    }}
-                                >
-                                    {t}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+
 
                     {/* Close button */}
                     <button
@@ -228,7 +204,7 @@ export default function StockDetailModal({
                             {/* AsseturaChart */}
                             <div style={{ flex: 1, overflow: 'hidden', padding: '12px' }}>
                                 <AsseturaChart
-                                    key={`${symbol}-${tf}`}
+                                    key={`${symbol}`}
                                     assetType={assetType}
                                     symbolOverride={symbol}
                                     labelOverride={`${name} · ${symbol}`}

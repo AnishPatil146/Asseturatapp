@@ -8,6 +8,7 @@ import { create } from 'zustand'
 import type {
   OHLCV, ChartType, IndicatorConfig, IndicatorResult,
   OrderBookLevel, WatchlistItem, Position, ChartViewport,
+  TradeRecord,
 } from '../engine/types'
 import { computeIndicators, type TAInput, type TAResult } from '../engine/indicators'
 
@@ -68,6 +69,16 @@ interface TradingStore {
   // ── Positions ────────────────────────────────────────────
   positions: Position[]
   setPositions: (positions: Position[]) => void
+  closePosition: (id: string) => void
+
+  // ── Trade History ────────────────────────────────────────
+  tradeHistory: TradeRecord[]
+  addTrade: (trade: TradeRecord) => void
+  clearTradeHistory: () => void
+
+  // ── Stock Detail Modal ───────────────────────────────────
+  selectedStock: { symbol: string, name: string, price: number, change: number, color: string, type: string } | null
+  setSelectedStock: (stock: { symbol: string, name: string, price: number, change: number, color: string, type: string } | null) => void
 
   // ── Connection Status ────────────────────────────────────
   wsStatus: 'disconnected' | 'connecting' | 'live' | 'simulated'
@@ -207,6 +218,42 @@ export const useTradingStore = create<TradingStore>((set, get) => ({
   // ── Positions ────────────────────────────────────────────
   positions: [],
   setPositions: (positions) => set({ positions }),
+  closePosition: (id) => {
+    const state = get()
+    const pos = state.positions.find(p => p.id === id)
+    if (!pos) return
+    // Log closing trade into history
+    const trade: TradeRecord = {
+      id: `trade-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      symbol: pos.symbol,
+      side: pos.side === 'long' ? 'sell' : 'buy',
+      type: 'market',
+      qty: pos.qty,
+      price: pos.currentPrice,
+      fillPrice: pos.currentPrice,
+      total: pos.qty * pos.currentPrice,
+      fee: pos.qty * pos.currentPrice * 0.001,
+      pnl: pos.unrealizedPnL,
+      status: 'filled',
+      timestamp: Date.now(),
+      assetType: 'CRYPTO',
+    }
+    set({
+      positions: state.positions.filter(p => p.id !== id),
+      tradeHistory: [trade, ...state.tradeHistory].slice(0, 200),
+    })
+  },
+
+  // ── Trade History ────────────────────────────────────────
+  tradeHistory: [],
+  addTrade: (trade) => set((s) => ({
+    tradeHistory: [trade, ...s.tradeHistory].slice(0, 200),
+  })),
+  clearTradeHistory: () => set({ tradeHistory: [] }),
+
+  // ── Stock Detail Modal ───────────────────────────────────
+  selectedStock: null,
+  setSelectedStock: (stock) => set({ selectedStock: stock }),
 
   // ── Connection ───────────────────────────────────────────
   wsStatus: 'disconnected',

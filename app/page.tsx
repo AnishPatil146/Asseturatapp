@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Navbar from '@/components/Navbar'
 import HomeClient from '@/components/HomeClient'
+import ToastContainer from '@/components/ui/ToastContainer'
 
 export default function HomePage() {
   return (
@@ -19,6 +20,7 @@ export default function HomePage() {
       }>
         <HomeClient />
       </Suspense>
+      <ToastContainer />
     </main>
   )
 }

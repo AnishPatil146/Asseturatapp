@@ -1,39 +1,51 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════
+   ASSETURA PRO — Institutional Design System (Phase 6)
+   Deep dark palette · Binance-gold accent · WCAG AA
+   Refs: Binance (data density), TradingView (chart), Groww (tables)
+   ═══════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg: #08090d;
-  --bg2: #0e1117;
-  --bg3: #141720;
-  --bg4: #1a1e2a;
-  --border: #1e2333;
-  --border2: #252b3d;
-  --text: #e2e8f7;
-  --text2: #7b88aa;
-  --text3: #4a5470;
-  --green: #00d4a0;
-  --green2: #00a87e;
-  --red: #ff4d6a;
-  --red2: #cc3d55;
-  --blue: #4f8ef7;
-  --blue2: #3a6fd4;
-  --amber: #f5a623;
-  --purple: #8b5cf6;
-  --font-sans: 'DM Sans', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  /* ── 4-Tier Background Depth ── */
+  --bg:       #0A0E17;
+  --bg-panel: #111827;
+  --bg-surf:  #1A1F2E;
+  --bg-hover: #222838;
+  --bg-elev:  #2A3142;
+
+  /* ── Borders (1px, low-opacity) ── */
+  --border:   rgba(255,255,255,0.04);
+  --border-l: rgba(255,255,255,0.07);
+  --border-f: rgba(240,185,11,0.30);
+
+  /* ── Text Hierarchy ── */
+  --text:     #E8ECF5;
+  --text-2:   #8891A8;
+  --text-3:   #515B74;
+  --text-4:   #2D3548;
+
+  /* ── Semantic Colors ── */
+  --neon-green: #00E676;
+  --neon-red:   #FF3B69;
+  --accent:     #F0B90B;
+  --blue:       #4F8EF7;
+  --amber:      #FFB020;
+  --purple:     #A78BFA;
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', 'DM Sans', -apple-system, sans-serif;
+  --font-mono: 'Roboto Mono', 'JetBrains Mono', monospace;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ═══ Global Reset ═══ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html,
-body {
+html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -42,163 +54,163 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'tnum', 'ss01', 'ss02';
+  font-variant-numeric: tabular-nums;
 }
 
-/* ─── Scrollbar ─── */
+/* ═══ Scrollbar — minimal, transparent ═══ */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
 
-/* ═══════════════════════════════════════════════
-   ANIMATION KEYFRAMES
-   ═══════════════════════════════════════════════ */
+/* ═══ Input Hardening ═══ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
+
+input:focus, button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* ═══ Range Slider ═══ */
+input[type="range"] {
+  -webkit-appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 4px rgba(240,185,11,0.5), 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATION KEYFRAMES — MNC-Grade Micro-Interactions
+   ═══════════════════════════════════════════════════════════════ */
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes accentPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(240,185,11,0.5); opacity: 1; }
+  50% { box-shadow: 0 0 12px rgba(240,185,11,0.8); opacity: 0.85; }
+}
+
+@keyframes priceFlash {
+  0%   { background: rgba(0,230,118,0.20); }
+  100% { background: transparent; }
+}
+
+@keyframes priceFlashBear {
+  0%   { background: rgba(255,59,105,0.20); }
+  100% { background: transparent; }
 }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; box-shadow: 0 0 5px var(--green); }
-  50% { opacity: 0.4; box-shadow: none; }
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-100%); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.92); }
-  to { opacity: 1; transform: scale(1); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes glow {
-  0%, 100% {
-    text-shadow: 0 0 8px rgba(79, 142, 247, 0.4), 0 0 20px rgba(79, 142, 247, 0.15);
-  }
-  50% {
-    text-shadow: 0 0 16px rgba(79, 142, 247, 0.7), 0 0 40px rgba(79, 142, 247, 0.3);
-  }
+  0%, 100% { text-shadow: 0 0 6px rgba(240,185,11,0.4), 0 0 18px rgba(240,185,11,0.12); }
+  50%      { text-shadow: 0 0 12px rgba(240,185,11,0.7), 0 0 35px rgba(240,185,11,0.25); }
 }
 
 @keyframes shimmer {
-  0% { transform: translateX(-100%); }
+  0%   { transform: translateX(-100%); }
   100% { transform: translateX(350%); }
 }
 
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes rotateGlow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes typewriter {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-@keyframes borderGlow {
-  0%, 100% { border-color: var(--border2); }
-  50% { border-color: var(--blue); }
-}
-
-@keyframes ripple {
-  0% { transform: scale(0); opacity: 0.5; }
-  100% { transform: scale(4); opacity: 0; }
+  50%      { transform: translateY(-6px); }
 }
 
 @keyframes ticker {
-  0% { transform: translateX(0); }
+  0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-  20%, 40%, 60%, 80% { transform: translateX(4px); }
-}
-
-@keyframes fadeInStagger {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  to   { transform: rotate(360deg); }
 }
 
-/* ─── Utility Classes ─── */
-.animate-fade { animation: fadeIn 0.3s ease forwards; }
-.animate-pulse { animation: pulse 2s infinite; }
-.animate-blink { animation: blink 1.8s infinite; }
-.animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-slide-down { animation: slideDown 0.3s ease forwards; }
-.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-.animate-glow { animation: glow 2s ease-in-out infinite; }
-.animate-float { animation: float 3s ease-in-out infinite; }
-.animate-shimmer { animation: shimmer 1.5s infinite; }
-.animate-shake { animation: shake 0.5s ease-in-out; }
-.animate-spin { animation: spin 1s linear infinite; }
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
 
-.font-mono { font-family: var(--font-mono); }
-.text-green { color: var(--green); }
-.text-red { color: var(--red); }
-.text-blue { color: var(--blue); }
-.text-amber { color: var(--amber); }
-.text-muted { color: var(--text2); }
-.text-faint { color: var(--text3); }
+/* ═══ Utility Classes ═══ */
+.animate-fade      { animation: fadeIn 0.3s ease forwards; }
+.animate-pulse     { animation: pulse 2s infinite; }
+.animate-accent    { animation: accentPulse 2s ease-in-out infinite; }
+.animate-scale-in  { animation: scaleIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-slide-up  { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-slide-down{ animation: slideDown 0.3s ease forwards; }
+.animate-glow      { animation: glow 2s ease-in-out infinite; }
+.animate-float     { animation: float 3s ease-in-out infinite; }
+.animate-shimmer   { animation: shimmer 1.5s infinite; }
+.animate-spin      { animation: spin 1s linear infinite; }
+.animate-blink     { animation: blink 1.8s infinite; }
 
-/* ─── Glass Effect ─── */
+/* ═══ Glass Effect (elevated panels) ═══ */
 .glass {
-  background: rgba(14, 17, 23, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(30, 35, 51, 0.6);
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
-/* ─── Responsive Breakpoints ─── */
+/* ═══ Panel Elevation Shadows ═══ */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ═══ Responsive ═══ */
 @media (max-width: 1024px) {
   .hide-tablet { display: none !important; }
 }
-
 @media (max-width: 768px) {
   .hide-mobile { display: none !important; }
   html, body { font-size: 12px; }
 }
-
 @media (max-width: 480px) {
   .hide-small { display: none !important; }
 }

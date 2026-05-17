@@ -12,7 +12,7 @@ export default function HomePage() {
           color: '#4a5470',
           fontFamily: 'DM Mono,monospace',
           fontSize: '12px',
-          letterSpacing: '1px',
+          letterSpacing: '2px',
         }}>
           LOADING...
         </div>

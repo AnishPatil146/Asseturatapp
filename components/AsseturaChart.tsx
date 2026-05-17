@@ -1,340 +1,665 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState, useMemo, useLayoutEffect } from 'react'
+// ═══════════════════════════════════════════════════════════════
+// ASSETURA PRO — Institutional Canvas Chart Engine
+// 60+ FPS • Canvas2D • Sub-pixel rendering • Kinetic interactions
+// Multi-chart-type hot-swap • Indicator overlays
+// ═══════════════════════════════════════════════════════════════
+
+import {
+  useEffect,
+  useRef,
+  useCallback,
+  useState,
+  useLayoutEffect,
+} from 'react'
+
+import { useTradingStore } from '@/lib/store/useTradingStore'
 import { wsManager } from '@/services/websocketManager'
 import { generateCandles, mergeCandle, SYMBOL_CONFIG } from '@/services/candleProvider'
 import type { NormalizedCandle } from '@/services/candleProvider'
-import {
-  T, BAR_MS, fmtPrice, fmtVol, Mapper, buildMapper,
-  computeRSI, computeMACD, computeEMA, computeBB, computeVolProfile,
-  drawGrid, drawCandles, drawLine, drawArea, drawVolume, drawLastPrice, drawCrosshair,
-  drawRSI, drawMACD, drawEMA, drawBB, drawVolProfile,
-  type ChartType, type IndicatorKey,
-} from '@/lib/engine/ChartRenderer'
+import { CoordinateMapper, buildMapper } from '@/lib/engine/CoordinateMapper'
+import { renderChart, drawCrosshair, drawIndicatorOverlay } from '@/lib/engine/renderers'
+import { THEME } from '@/lib/engine/theme'
+import { formatPrice, formatTime, formatDateTime, pctChange } from '@/lib/engine/precision'
+import type { OHLCV, ChartType } from '@/lib/engine/types'
 
-type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D' | '1W'
-const TF_CFG: Record<Timeframe, { barMs: number; count: number }> = {
-  '1m': { barMs: 60000, count: 120 }, '5m': { barMs: 300000, count: 120 },
-  '15m': { barMs: 900000, count: 100 }, '1h': { barMs: 3600000, count: 120 },
-  '4h': { barMs: 14400000, count: 80 }, '1D': { barMs: 86400000, count: 120 },
-  '1W': { barMs: 604800000, count: 60 },
-}
-const CHART_TYPES: ChartType[] = ['candle', 'line', 'area', 'volume']
-const TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1D', '1W']
+const BAR_MS = 5 * 60 * 1000
 
-const INDICATORS: { key: IndicatorKey; label: string; color: string }[] = [
-  { key: 'ema9', label: 'EMA 9', color: T.ema9 },
-  { key: 'ema21', label: 'EMA 21', color: T.ema21 },
-  { key: 'ema50', label: 'EMA 50', color: T.ema50 },
-  { key: 'ema200', label: 'EMA 200', color: T.ema200 },
-  { key: 'bb', label: 'BB', color: T.bbUpper },
-  { key: 'volProfile', label: 'Vol Profile', color: T.volProfile },
-  { key: 'rsi', label: 'RSI', color: T.rsiLine },
-  { key: 'macd', label: 'MACD', color: T.macdLine },
+const CHART_TYPES: { type: ChartType; label: string }[] = [
+  { type: 'candlestick', label: 'Candle' },
+  { type: 'bar',         label: 'OHLC' },
+  { type: 'line',        label: 'Line' },
+  { type: 'area',        label: 'Area' },
+  { type: 'heikinashi',  label: 'Heikin' },
+  { type: 'baseline',    label: 'Baseline' },
 ]
+
+const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D', '1W', '1M']
 
 interface Props {
   assetType?: 'CRYPTO' | 'STOCKS' | 'FOREX' | 'OPTIONS'
+  height?: number
   symbolOverride?: string
   labelOverride?: string
   basePriceOverride?: number
-  height?: number
 }
 
-const s = { // style helpers
-  btn: (a: boolean, c?: string): React.CSSProperties => ({
-    padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 500, cursor: 'pointer',
-    border: `1px solid ${a ? T.btnBorder : 'transparent'}`, background: a ? T.btnActive : 'transparent',
-    color: a ? (c || T.text) : T.textMuted, fontFamily: 'Inter,-apple-system,sans-serif',
-    transition: 'all 0.2s', letterSpacing: '0.2px',
-  }),
-}
+export default function AsseturaChart({
+  assetType = 'CRYPTO',
+  height = 520,
+  symbolOverride,
+  labelOverride,
+  basePriceOverride,
+}: Props) {
+  const baseCfg = SYMBOL_CONFIG[assetType]
+  const cfg = {
+    symbol: symbolOverride ?? baseCfg.symbol,
+    provider: baseCfg.provider,
+    basePrice: basePriceOverride ?? baseCfg.basePrice,
+    label: labelOverride ?? baseCfg.label,
+  }
 
-export default function AsseturaChart({ assetType = 'CRYPTO', symbolOverride, labelOverride, basePriceOverride }: Props) {
-  const cfg = SYMBOL_CONFIG[assetType]
-  const symbol = symbolOverride || cfg.symbol
-  const label = labelOverride || cfg.label
-  const basePrice = basePriceOverride ?? cfg.basePrice
-  const provider = symbolOverride ? 'mock' as const : cfg.provider
+  const symbol = cfg.symbol
+  const provider = cfg.provider
 
+  // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const mapperRef = useRef<Mapper | null>(null)
+  const mapperRef = useRef<CoordinateMapper | null>(null)
   const rafRef = useRef<number>(0)
   const isDirty = useRef(true)
   const dragRef = useRef({ active: false, startX: 0, startXMin: 0, startXMax: 0 })
   const symRef = useRef(symbol)
-  const crosshairRef = useRef<{ mx: number; my: number; price: number; ts: number } | null>(null)
+  const crosshairRef = useRef<{
+    mx: number; my: number; price: number; ts: number; visible: boolean
+  } | null>(null)
+  const kineticRef = useRef({ velocity: 0, lastTime: 0, lastX: 0, animating: false })
 
-  const [candles, setCandles] = useState<NormalizedCandle[]>(() => generateCandles(basePrice, 200))
-  const [chartType, setChartType] = useState<ChartType>('candle')
-  const [timeframe, setTimeframe] = useState<Timeframe>('1h')
-  const [activeIndicators, setActiveIndicators] = useState<Set<IndicatorKey>>(new Set(['rsi', 'macd']))
-  const [size, setSize] = useState({ w: 900, h: 520 })
-  const [status, setStatus] = useState<'connecting' | 'live' | 'mock'>('connecting')
-  const [hud, setHud] = useState<{ visible: boolean; x: number; y: number; candle: NormalizedCandle | null }>({ visible: false, x: 0, y: 0, candle: null })
+  // State
+  const [candles, setCandles] = useState<NormalizedCandle[]>([])
+  const [mounted, setMounted] = useState(false)
+  const [size, setSize] = useState({ w: 900, h: height })
+  const [status, setStatus] = useState<'connecting' | 'live' | 'simulated'>('connecting')
 
-  const toggleIndicator = (k: IndicatorKey) => {
-    setActiveIndicators(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
-    isDirty.current = true
-  }
+  // Global store
+  const chartType = useTradingStore(s => s.chartType)
+  const setChartType = useTradingStore(s => s.setChartType)
+  const timeframe = useTradingStore(s => s.timeframe)
+  const setTimeframe = useTradingStore(s => s.setTimeframe)
+  const indicatorResults = useTradingStore(s => s.indicatorResults)
+  const indicatorConfigs = useTradingStore(s => s.indicatorConfigs)
 
-  const tfCfg = TF_CFG[timeframe]
-  const visCandles = useMemo(() => candles.slice(-tfCfg.count), [candles, tfCfg.count])
+  // HUD
+  const [hud, setHud] = useState<{
+    visible: boolean; x: number; y: number;
+    candle: NormalizedCandle | null
+  }>({ visible: false, x: 0, y: 0, candle: null })
 
-  const stats = useMemo(() => {
-    if (!visCandles.length) return { open: 0, high: 0, low: 0, close: 0, volume: 0, change: 0, changePct: 0, isPos: true }
-    const f = visCandles[0], l = visCandles[visCandles.length - 1], ch = l.close - f.open
-    return {
-      open: f.open, high: Math.max(...visCandles.map(c => c.high)), low: Math.min(...visCandles.map(c => c.low)),
-      close: l.close, volume: visCandles.reduce((a, c) => a + c.volume, 0), change: ch, changePct: (ch / f.open) * 100, isPos: ch >= 0
-    }
-  }, [visCandles])
-
-  // Precompute all indicator data
-  const ind = useMemo(() => ({
-    rsi: computeRSI(visCandles), macd: computeMACD(visCandles),
-    ema9: computeEMA(visCandles, 9), ema21: computeEMA(visCandles, 21),
-    ema50: computeEMA(visCandles, 50), ema200: computeEMA(visCandles, 200),
-    bb: computeBB(visCandles), volProfile: computeVolProfile(visCandles),
-  }), [visCandles])
-
-  useLayoutEffect(() => {
-    const el = canvasRef.current?.parentElement; if (!el) return
-    const measure = () => { const w = Math.floor(el.clientWidth) || 900, h = Math.floor(el.clientHeight) || 520; setSize(p => (p.w === w && p.h === h) ? p : { w, h }) }
-    measure(); const ro = new ResizeObserver(() => measure()); ro.observe(el); return () => ro.disconnect()
-  }, [])
-
-  useEffect(() => { mapperRef.current = buildMapper(visCandles, size.w, size.h, tfCfg.barMs); isDirty.current = true }, [visCandles, size, tfCfg.barMs])
-
+  // ── Initialize ──────────────────────────────────────────
   useEffect(() => {
-    symRef.current = symbol; setStatus('connecting')
-    // Start with mock data immediately so the chart isn't blank
-    setCandles(generateCandles(basePrice, 200, tfCfg.barMs))
-    let cancelled = false
+    setCandles(generateCandles(cfg.basePrice, 200))
+    setMounted(true)
+  }, [cfg.basePrice])
 
-    // Map our timeframe to API interval format
-    const intervalMap: Record<string, string> = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1D': '1D', '1W': '1W' }
-    const apiInterval = intervalMap[timeframe] || '1h'
+  // ── Measure container ──────────────────────────────────
+  useLayoutEffect(() => {
+    const el = canvasRef.current?.parentElement
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const w = Math.floor(entry.contentRect.width) || 900
+      setSize({ w, h: height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [height])
 
-    // Fetch real historical data
-    fetch(`/api/candles?symbol=${encodeURIComponent(symbol)}&interval=${apiInterval}&limit=200`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled || symRef.current !== symbol) return
-        if (data.candles && data.candles.length > 0) {
-          const real: NormalizedCandle[] = data.candles.map((c: any) => ({
-            time: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
-          }))
-          setCandles(real)
-          setStatus('live')
-          isDirty.current = true
-          console.log(`[AsseturaChart] Loaded ${real.length} real candles for ${symbol} via ${data.provider}`)
-        } else {
-          console.warn(`[AsseturaChart] No real data for ${symbol}, using simulated`)
-          setStatus('mock')
-        }
-      })
-      .catch(err => {
-        if (cancelled) return
-        console.warn('[AsseturaChart] API fetch failed, using simulated:', err.message)
-        setStatus('mock')
-      })
+  // ── Rebuild mapper ──────────────────────────────────────
+  useEffect(() => {
+    if (!candles.length) return
+    const ohlcv: OHLCV[] = candles.map(c => ({
+      timestamp: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume,
+    }))
+    mapperRef.current = buildMapper(ohlcv, size.w, size.h, 120, BAR_MS)
+    isDirty.current = true
+  }, [candles, size])
 
-    // Connect WebSocket for live updates
+  // ── Sync candles to global store ───────────────────────
+  useEffect(() => {
+    if (!candles.length) return
+    const ohlcv: OHLCV[] = candles.map(c => ({
+      timestamp: c.time,
+      open: c.open, high: c.high, low: c.low,
+      close: c.close, volume: c.volume,
+    }))
+    useTradingStore.getState().setCandles(ohlcv)
+  }, [candles])
+
+  // ── WebSocket ──────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted) return
+    symRef.current = symbol
+    setStatus('connecting')
+
     wsManager.connect(symbol, provider, (msg) => {
       if (symRef.current !== symbol) return
-      setCandles(prev => mergeCandle(prev, { time: msg.time, open: msg.open, high: msg.high, low: msg.low, close: msg.close, volume: msg.volume }))
+      const nc: NormalizedCandle = {
+        time: msg.time,
+        open: msg.open,
+        high: msg.high,
+        low: msg.low,
+        close: msg.close,
+        volume: msg.volume,
+      }
+      setCandles(prev => mergeCandle(prev, nc))
+      setStatus(provider === 'binance' ? 'live' : 'simulated')
       isDirty.current = true
     })
 
-    return () => { cancelled = true; wsManager.disconnect() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, provider, basePrice, assetType, timeframe, tfCfg.barMs])
+    return () => { wsManager.disconnect() }
+  }, [symbol, provider, mounted])
 
-  // Sub-pane layout
-  const paneLayout = useMemo(() => {
-    const subPanes: string[] = []
-    if (activeIndicators.has('rsi')) subPanes.push('rsi')
-    if (activeIndicators.has('macd')) subPanes.push('macd')
-    const subH = subPanes.length > 0 ? Math.min(70, size.h * 0.13) : 0
-    const mainH = size.h - subPanes.length * subH
-    const panes = [{ type: 'main', y: 0, h: mainH }]
-    let y = mainH
-    for (const t of subPanes) { panes.push({ type: t, y, h: subH }); y += subH }
-    return { mainH, panes }
-  }, [activeIndicators, size.h])
-
-  // Main render
+  // ── Main Render Loop ──────────────────────────────────
   const draw = useCallback(() => {
     rafRef.current = requestAnimationFrame(draw)
-    if (!isDirty.current) return; isDirty.current = false
-    const canvas = canvasRef.current; if (!canvas) return
-    const dpr = Math.min(window.devicePixelRatio || 1, 2), W = size.w, H = size.h
-    const mapper = buildMapper(visCandles, W, paneLayout.mainH, tfCfg.barMs); mapperRef.current = mapper
-    if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) { canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr) }
-    const ctx = canvas.getContext('2d'); if (!ctx) return
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H); ctx.fillStyle = T.bg; ctx.fillRect(0, 0, W, H)
-    if (!visCandles.length) return
-    const vis = visCandles.filter(c => c.time >= mapper.pxX(mapper.chartL) - tfCfg.barMs * 3 && c.time <= mapper.pxX(mapper.chartR) + tfCfg.barMs * 3)
 
-    // Volume Profile (behind everything)
-    if (activeIndicators.has('volProfile')) drawVolProfile(ctx, mapper, ind.volProfile)
+    // Kinetic scrolling
+    const kin = kineticRef.current
+    if (kin.animating && Math.abs(kin.velocity) > 0.1) {
+      const mapper = mapperRef.current
+      if (mapper) {
+        const range = mapper.xMax - mapper.xMin
+        const pxPerMs = (size.w - 72) / (range || 1)
+        const dMs = -kin.velocity / pxPerMs
+        mapper.updateViewport({
+          xMin: mapper.xMin + dMs,
+          xMax: mapper.xMax + dMs,
+        })
+        kin.velocity *= 0.96  // friction
+        isDirty.current = true
+      }
+    } else {
+      kin.animating = false
+    }
 
-    drawGrid(ctx, mapper, visCandles, paneLayout.mainH)
+    if (!isDirty.current) return
+    isDirty.current = false
 
-    // Bollinger Bands (behind candles)
-    if (activeIndicators.has('bb')) drawBB(ctx, mapper, vis, ind.bb)
+    const canvas = canvasRef.current
+    const mapper = mapperRef.current
+    if (!canvas || !mapper || !candles.length) return
 
-    // EMAs
-    if (activeIndicators.has('ema200')) drawEMA(ctx, mapper, vis, ind.ema200, T.ema200)
-    if (activeIndicators.has('ema50')) drawEMA(ctx, mapper, vis, ind.ema50, T.ema50)
-    if (activeIndicators.has('ema21')) drawEMA(ctx, mapper, vis, ind.ema21, T.ema21)
-    if (activeIndicators.has('ema9')) drawEMA(ctx, mapper, vis, ind.ema9, T.ema9)
+    const dpr = Math.min(window.devicePixelRatio || 1, 3)
+    const W = size.w
+    const H = size.h
 
-    // Main chart type
-    if (chartType === 'candle') drawCandles(ctx, mapper, vis, tfCfg.barMs)
-    else if (chartType === 'line') drawLine(ctx, mapper, vis)
-    else if (chartType === 'area') drawArea(ctx, mapper, vis)
-    else if (chartType === 'volume') drawVolume(ctx, mapper, vis)
+    // Set canvas buffer size (physical pixels)
+    const bufW = Math.floor(W * dpr)
+    const bufH = Math.floor(H * dpr)
+    if (canvas.width !== bufW || canvas.height !== bufH) {
+      canvas.width = bufW
+      canvas.height = bufH
+    }
 
-    drawLastPrice(ctx, mapper, visCandles)
+    const ctx = canvas.getContext('2d', { alpha: false })
+    if (!ctx) return
 
+    // Transform to CSS pixel space
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    // Convert to OHLCV
+    const ohlcv: OHLCV[] = candles.map(c => ({
+      timestamp: c.time,
+      open: c.open, high: c.high, low: c.low,
+      close: c.close, volume: c.volume,
+    }))
+
+    // Render chart
+    renderChart(ctx, mapper, ohlcv, chartType, BAR_MS)
+
+    // Render indicator overlays
+    for (const result of indicatorResults) {
+      const config = indicatorConfigs.find(c => c.id === result.id)
+      if (!config || !config.visible || config.pane !== 'overlay') continue
+
+      drawIndicatorOverlay(ctx, mapper, result.values, result.timestamps, config.color)
+
+      // Bollinger bands — draw upper/lower
+      if (result.type === 'bollinger' && result.extra) {
+        if (result.extra.upper) {
+          drawIndicatorOverlay(ctx, mapper, result.extra.upper, result.timestamps, config.color, 0.8)
+        }
+        if (result.extra.lower) {
+          drawIndicatorOverlay(ctx, mapper, result.extra.lower, result.timestamps, config.color, 0.8)
+        }
+      }
+    }
+
+    // Crosshair
     const ch = crosshairRef.current
-    if (ch && ch.my < paneLayout.mainH) drawCrosshair(ctx, mapper, ch, paneLayout.mainH)
-
-    // Sub-panes
-    for (const pane of paneLayout.panes) {
-      if (pane.type === 'rsi') drawRSI(ctx, ind.rsi, visCandles, mapper, pane.y, pane.h)
-      if (pane.type === 'macd') drawMACD(ctx, ind.macd.macd, ind.macd.signal, ind.macd.hist, visCandles, mapper, pane.y, pane.h)
+    if (ch && ch.visible) {
+      drawCrosshair(ctx, mapper, ch.mx, ch.my, ch.price, ch.ts)
     }
-  }, [visCandles, size, chartType, paneLayout, ind, activeIndicators])
+  }, [candles, size, chartType, indicatorResults, indicatorConfigs])
 
-  useEffect(() => { rafRef.current = requestAnimationFrame(draw); return () => cancelAnimationFrame(rafRef.current) }, [draw])
+  // ── Start render loop ─────────────────────────────────
+  useEffect(() => {
+    rafRef.current = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [draw])
 
-  // Mouse
+  // ── Mouse Handlers ────────────────────────────────────
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const m = mapperRef.current; if (!m) return
-    const r = e.currentTarget.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top
-    const ts = m.pxX(mx), price = m.pxY(my)
-    const near = visCandles.length > 0 ? visCandles.reduce((b, c) => Math.abs(c.time - ts) < Math.abs(b.time - ts) ? c : b, visCandles[0]) : null
-    setHud({ visible: true, x: mx + 14 > size.w - 190 ? mx - 190 : mx + 14, y: Math.max(4, my - 90), candle: near })
-    crosshairRef.current = { mx, my, price, ts }; isDirty.current = true
+    const mapper = mapperRef.current
+    if (!mapper) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    const ts = mapper.pxToTime(mx)
+    const price = mapper.pxToPrice(my)
+
+    crosshairRef.current = { mx, my, price, ts, visible: true }
+    isDirty.current = true
+
+    // Find nearest candle for HUD
+    const near = candles.length > 0
+      ? candles.reduce((b, c) =>
+          Math.abs(c.time - ts) < Math.abs(b.time - ts) ? c : b
+        , candles[0])
+      : null
+
+    const hudX = mx + 14 > size.w - 210 ? mx - 210 : mx + 14
+    setHud({ visible: true, x: hudX, y: Math.max(8, my - 80), candle: near })
+
+    // Drag panning
     if (dragRef.current.active) {
-      const range = dragRef.current.startXMax - dragRef.current.startXMin, pxPerMs = (size.w - 82) / range
+      const range = dragRef.current.startXMax - dragRef.current.startXMin
+      const pxPerMs = (size.w - 72) / (range || 1)
       const dMs = -(e.clientX - dragRef.current.startX) / pxPerMs
-      m.update({ xMin: dragRef.current.startXMin + dMs, xMax: dragRef.current.startXMax + dMs }); isDirty.current = true
+
+      mapper.updateViewport({
+        xMin: dragRef.current.startXMin + dMs,
+        xMax: dragRef.current.startXMax + dMs,
+      })
+
+      // Auto-scale Y
+      const ohlcv: OHLCV[] = candles.map(c => ({
+        timestamp: c.time, open: c.open, high: c.high,
+        low: c.low, close: c.close, volume: c.volume,
+      }))
+      const vis = mapper.getVisibleCandles(ohlcv, BAR_MS)
+      mapper.autoScaleY(vis)
+
+      // Track velocity for kinetic scrolling
+      const now = performance.now()
+      const dt = now - kineticRef.current.lastTime
+      if (dt > 0) {
+        kineticRef.current.velocity = (e.clientX - kineticRef.current.lastX) / (dt / 16)
+        kineticRef.current.lastTime = now
+        kineticRef.current.lastX = e.clientX
+      }
+
+      isDirty.current = true
     }
-  }, [visCandles, size])
-  const onMouseDown = useCallback((e: React.MouseEvent) => { const m = mapperRef.current; if (!m) return; dragRef.current = { active: true, startX: e.clientX, startXMin: m.pxX(0), startXMax: m.pxX(size.w - 14) } }, [size])
-  const onMouseUp = useCallback(() => { dragRef.current.active = false }, [])
-  const onMouseLeave = useCallback(() => { dragRef.current.active = false; crosshairRef.current = null; isDirty.current = true; setHud(h => ({ ...h, visible: false })) }, [])
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault(); const m = mapperRef.current; if (!m) return
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect(), mx = e.clientX - r.left, pivot = m.pxX(mx), f = e.deltaY > 0 ? 1.12 : 0.88
-    const cMin = m.pxX(0), cMax = m.pxX(size.w - 14), cR = cMax - cMin, nR = cR * f
-    if (nR < BAR_MS * 8 || nR > BAR_MS * visCandles.length) return
-    const xMin = pivot - (pivot - cMin) * f, xMax = pivot + (cMax - pivot) * f
-    const v = visCandles.filter(c => c.time >= xMin && c.time <= xMax)
-    const lo = v.length ? Math.min(...v.map(c => c.low)) : m.yMin, hi = v.length ? Math.max(...v.map(c => c.high)) : m.yMax
-    const p = (hi - lo) * 0.12 || hi * 0.05; m.update({ xMin, xMax, yMin: lo - p, yMax: hi + p }); isDirty.current = true
-  }, [visCandles, size])
+  }, [candles, size])
+
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    const mapper = mapperRef.current
+    if (!mapper) return
+    kineticRef.current.animating = false
+    kineticRef.current.velocity = 0
+    kineticRef.current.lastTime = performance.now()
+    kineticRef.current.lastX = e.clientX
+    dragRef.current = {
+      active: true,
+      startX: e.clientX,
+      startXMin: mapper.xMin,
+      startXMax: mapper.xMax,
+    }
+  }, [])
+
+  const onMouseUp = useCallback(() => {
+    if (dragRef.current.active) {
+      // Start kinetic scrolling
+      if (Math.abs(kineticRef.current.velocity) > 2) {
+        kineticRef.current.animating = true
+      }
+    }
+    dragRef.current.active = false
+  }, [])
+
+  const onMouseLeave = useCallback(() => {
+    if (dragRef.current.active && Math.abs(kineticRef.current.velocity) > 2) {
+      kineticRef.current.animating = true
+    }
+    dragRef.current.active = false
+    crosshairRef.current = null
+    isDirty.current = true
+    setHud(h => ({ ...h, visible: false }))
+  }, [])
+
+  // ── CRITICAL: Scroll Lock & Zoom ──────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const mapper = mapperRef.current
+      if (!mapper) return
+
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const pivot = mapper.pxToTime(mx)
+
+      // Exponential zoom scaling
+      const factor = e.deltaY > 0 ? 1.08 : 0.92
+
+      const curRange = mapper.xMax - mapper.xMin
+      const newRange = curRange * factor
+      if (newRange < BAR_MS * 8 || newRange > BAR_MS * candles.length * 2) return
+
+      const xMin = pivot - (pivot - mapper.xMin) * factor
+      const xMax = pivot + (mapper.xMax - pivot) * factor
+
+      mapper.updateViewport({ xMin, xMax })
+
+      // Auto-scale Y axis to visible range
+      const ohlcv: OHLCV[] = candles.map(c => ({
+        timestamp: c.time, open: c.open, high: c.high,
+        low: c.low, close: c.close, volume: c.volume,
+      }))
+      const vis = mapper.getVisibleCandles(ohlcv, BAR_MS)
+      mapper.autoScaleY(vis)
+
+      isDirty.current = true
+    }
+
+    // passive: false is REQUIRED to enable preventDefault
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
+  }, [candles])
+
+  const lastCandle = candles[candles.length - 1]
+  const lastPrice = lastCandle?.close ?? 0
+  const isBull = lastCandle ? lastCandle.close >= lastCandle.open : true
+
+  // ── Loading ───────────────────────────────────────────
+  if (!mounted) {
+    return (
+      <div style={{
+        background: THEME.bg,
+        borderRadius: '6px',
+        border: `1px solid ${THEME.border}`,
+        height,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: THEME.fontMono,
+        fontSize: '10px',
+        color: THEME.textMuted,
+        letterSpacing: '3px',
+      }}>
+        INITIALIZING ENGINE
+      </div>
+    )
+  }
 
   return (
-    <div style={{ background: T.bg, borderRadius: '8px', border: `1px solid ${T.btnBorder}`, overflow: 'hidden', userSelect: 'none', height: '100%', display: 'flex', flexDirection: 'column', fontFamily: 'Inter,-apple-system,BlinkMacSystemFont,sans-serif' }}>
+    <div style={{
+      background: THEME.bg,
+      borderRadius: '6px',
+      border: `1px solid ${THEME.border}`,
+      overflow: 'hidden',
+      userSelect: 'none',
+      position: 'relative',
+      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.01), 0 2px 12px rgba(0,0,0,0.4)',
+    }}>
 
-      {/* ── Topbar ──────────────────────────────────────── */}
-      <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.btnBorder}`, flexShrink: 0, background: T.bgPanel }}>
-        {/* Row 1: Symbol + Price */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '10px', color: T.textMuted, fontWeight: 500, letterSpacing: '1.2px', textTransform: 'uppercase' }}>Assetura Charts</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '16px', fontWeight: 700, color: T.text }}>{label.split(/[·/]/)[0].trim()}</span>
-            <span style={{ fontSize: '11px', color: T.textMuted }}>{label}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginLeft: 'auto' }}>
-            <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '18px', fontWeight: 700, color: stats.isPos ? T.bull : T.bear, fontVariantNumeric: 'tabular-nums' }}>
-              ${fmtPrice(stats.close)}
-            </span>
-            <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '11px', color: stats.isPos ? T.bull : T.bear, fontVariantNumeric: 'tabular-nums' }}>
-              {stats.isPos ? '▲' : '▼'} {stats.isPos ? '+' : ''}{stats.change.toFixed(2)} ({stats.changePct.toFixed(2)}%)
-            </span>
-          </div>
-          {/* Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: status === 'live' ? T.bull : status === 'mock' ? '#4f8ef7' : T.textMuted, display: 'inline-block', boxShadow: status === 'live' ? `0 0 6px ${T.bull}` : 'none' }} />
-            <span style={{ fontSize: '9px', color: T.textMuted, fontFamily: '"DM Mono",monospace', letterSpacing: '0.8px' }}>
-              {status === 'live' ? 'LIVE' : status === 'mock' ? 'SIM' : '···'}
-            </span>
-          </div>
-        </div>
+      {/* ── Toolbar ── */}
+      <div style={{
+        padding: '5px 14px',
+        borderBottom: `1px solid ${THEME.border}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        background: THEME.bgPanel,
+        flexWrap: 'wrap',
+        minHeight: '36px',
+      }}>
+        {/* Symbol */}
+        <span style={{
+          fontFamily: THEME.fontMono,
+          fontSize: '13px',
+          fontWeight: 700,
+          color: THEME.text,
+          letterSpacing: '0.5px',
+        }}>
+          {cfg.label}
+        </span>
 
-        {/* Row 2: Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexWrap: 'wrap' }}>
-          {CHART_TYPES.map(ct => (
-            <button key={ct} onClick={() => { setChartType(ct); isDirty.current = true }} style={s.btn(chartType === ct)}>
-              {ct.charAt(0).toUpperCase() + ct.slice(1)}
+        {/* Price */}
+        <span style={{
+          fontFamily: THEME.fontMono,
+          fontSize: '13px',
+          fontWeight: 600,
+          color: isBull ? THEME.bull : THEME.bear,
+        }}>
+          {lastCandle ? formatPrice(lastCandle.close) : '---'}
+        </span>
+
+        {/* Change % */}
+        {lastCandle && (
+          <span style={{
+            fontFamily: THEME.fontMono,
+            fontSize: '11px',
+            color: isBull ? THEME.bull : THEME.bear,
+            padding: '1px 6px',
+            borderRadius: '3px',
+            background: isBull ? THEME.bullMuted : THEME.bearMuted,
+          }}>
+            {isBull ? '+' : ''}
+            {pctChange(lastCandle.open, lastCandle.close).toFixed(2)}%
+          </span>
+        )}
+
+        {/* Separator */}
+        <div style={{ width: '1px', height: '18px', background: THEME.border, margin: '0 2px' }} />
+
+        {/* Chart type buttons */}
+        {CHART_TYPES.map(ct => {
+          const isActive = chartType === ct.type
+          return (
+            <button
+              key={ct.type}
+              onClick={() => { setChartType(ct.type); isDirty.current = true }}
+              title={ct.label}
+              style={{
+                padding: '3px 10px',
+                borderRadius: '3px',
+                fontSize: '10px',
+                fontWeight: isActive ? 600 : 400,
+                cursor: 'pointer',
+                border: isActive
+                  ? `1px solid ${THEME.borderFocus}`
+                  : '1px solid transparent',
+                background: isActive
+                  ? THEME.bgSurface
+                  : 'transparent',
+                color: isActive
+                  ? THEME.accent
+                  : THEME.textMuted,
+                fontFamily: THEME.fontMono,
+                transition: 'all 0.15s',
+                textShadow: isActive ? `0 0 6px ${THEME.accentGlow}` : 'none',
+              }}
+            >
+              {ct.label}
             </button>
-          ))}
-          <div style={{ width: '1px', height: '16px', background: T.btnBorder, margin: '0 6px' }} />
-          {INDICATORS.map(i => (
-            <button key={i.key} onClick={() => toggleIndicator(i.key)} style={s.btn(activeIndicators.has(i.key), i.color)}>
-              {i.label}
+          )
+        })}
+
+        {/* Separator */}
+        <div style={{ width: '1px', height: '18px', background: THEME.border, margin: '0 2px' }} />
+
+        {/* Timeframe buttons */}
+        {TIMEFRAMES.map(tf => {
+          const isActive = timeframe === tf
+          return (
+            <button
+              key={tf}
+              onClick={() => setTimeframe(tf)}
+              style={{
+                padding: '3px 7px',
+                borderRadius: '3px',
+                fontSize: '10px',
+                fontWeight: isActive ? 600 : 400,
+                cursor: 'pointer',
+                border: 'none',
+                background: isActive ? THEME.bgSurface : 'transparent',
+                color: isActive ? THEME.accent : THEME.textMuted,
+                fontFamily: THEME.fontMono,
+                transition: 'all 0.12s',
+                textShadow: isActive ? `0 0 6px ${THEME.accentGlow}` : 'none',
+              }}
+            >
+              {tf}
             </button>
-          ))}
-          <div style={{ width: '1px', height: '16px', background: T.btnBorder, margin: '0 6px' }} />
-          {TIMEFRAMES.map(tf => (
-            <button key={tf} onClick={() => { setTimeframe(tf); isDirty.current = true }} style={s.btn(timeframe === tf)}>{tf}</button>
-          ))}
+          )
+        })}
+
+        {/* Status indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: 'auto' }}>
+          <span style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            display: 'inline-block',
+            background: status === 'live'
+              ? THEME.bull
+              : status === 'simulated'
+                ? THEME.blue
+                : THEME.textMuted,
+            animation: 'pulse 2s infinite',
+            boxShadow: status === 'live' ? `0 0 6px ${THEME.bull}` : 'none',
+          }} />
+          <span style={{
+            fontSize: '9px',
+            color: THEME.textMuted,
+            fontFamily: THEME.fontMono,
+            letterSpacing: '1px',
+          }}>
+            {status === 'live' ? 'LIVE' : status === 'simulated' ? 'SIM' : 'CONN'}
+          </span>
         </div>
       </div>
 
-      {/* ── Canvas ──────────────────────────────────────── */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
-        <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', cursor: 'crosshair' }}
-          onMouseMove={onMouseMove} onMouseDown={onMouseDown} onMouseUp={onMouseUp} onMouseLeave={onMouseLeave} onWheel={onWheel} />
-        {/* HUD */}
+      {/* ── Canvas ── */}
+      <div style={{ position: 'relative', width: '100%', height }}>
+        <canvas
+          ref={canvasRef}
+          style={{
+            display: 'block',
+            width: '100%',
+            height,
+            cursor: 'crosshair',
+            touchAction: 'none',
+          }}
+          onMouseMove={onMouseMove}
+          onMouseDown={onMouseDown}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+        />
+
+        {/* ── HUD Tooltip ── */}
         {hud.visible && hud.candle && (
           <div style={{
-            position: 'absolute', left: hud.x, top: hud.y, background: T.hud, border: `1px solid ${T.hudBorder}`,
-            borderRadius: '6px', padding: '8px 12px', pointerEvents: 'none', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-            zIndex: 99, minWidth: '155px', boxShadow: '0 4px 20px rgba(0,0,0,0.6)'
+            position: 'absolute',
+            left: hud.x,
+            top: hud.y,
+            background: THEME.hud,
+            border: `1px solid ${THEME.hudBorder}`,
+            borderRadius: '8px',
+            padding: '10px 14px',
+            pointerEvents: 'none',
+            backdropFilter: 'blur(16px)',
+            zIndex: 99,
+            minWidth: '180px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '9px', color: T.textMuted, letterSpacing: '0.5px' }}>{label.split(/[·/]/)[0].trim()}</span>
-              <span style={{ fontFamily: '"DM Mono",monospace', fontSize: '11px', fontWeight: 600, color: hud.candle.close >= hud.candle.open ? T.bull : T.bear }}>
-                {hud.candle.close >= hud.candle.open ? '▲' : '▼'} {fmtPrice(hud.candle.close)}
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: '7px',
+              paddingBottom: '6px',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <span style={{
+                fontFamily: THEME.fontMono,
+                fontSize: '10px',
+                color: THEME.textMuted,
+                letterSpacing: '0.5px',
+              }}>
+                {cfg.label}
+              </span>
+              <span style={{
+                fontFamily: THEME.fontMono,
+                fontSize: '12px',
+                fontWeight: 600,
+                color: hud.candle.close >= hud.candle.open ? THEME.bull : THEME.bear,
+              }}>
+                {hud.candle.close >= hud.candle.open ? '▲' : '▼'}{' '}
+                {formatPrice(hud.candle.close)}
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px' }}>
-              {([['O', hud.candle.open, T.text], ['H', hud.candle.high, T.bull], ['L', hud.candle.low, T.bear], ['C', hud.candle.close, T.text]] as [string, number, string][]).map(([l, v, c]) => (
-                <div key={l} style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '8px', color: T.textMuted, fontFamily: '"DM Mono",monospace', minWidth: '7px' }}>{l}</span>
-                  <span style={{ fontSize: '10px', color: c, fontFamily: '"DM Mono",monospace', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{fmtPrice(v)}</span>
+
+            {/* OHLCV */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 14px' }}>
+              {[
+                { l: 'O', v: formatPrice(hud.candle.open), c: THEME.text },
+                { l: 'H', v: formatPrice(hud.candle.high), c: THEME.bull },
+                { l: 'L', v: formatPrice(hud.candle.low), c: THEME.bear },
+                { l: 'C', v: formatPrice(hud.candle.close), c: THEME.text },
+                { l: 'V', v: hud.candle.volume.toFixed(0), c: THEME.textMuted },
+                {
+                  l: 'Δ',
+                  v: formatPrice(Math.abs(hud.candle.close - hud.candle.open)),
+                  c: hud.candle.close >= hud.candle.open ? THEME.bull : THEME.bear,
+                },
+              ].map(({ l, v, c }) => (
+                <div key={l} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span style={{
+                    fontSize: '9px', color: THEME.textMuted,
+                    fontFamily: THEME.fontMono, minWidth: '10px',
+                  }}>{l}</span>
+                  <span style={{
+                    fontSize: '11px', color: c,
+                    fontFamily: THEME.fontMono, fontWeight: 500,
+                  }}>{v}</span>
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: '4px', paddingTop: '3px', borderTop: '1px solid rgba(255,255,255,0.04)', fontSize: '8px', color: T.textDim, fontFamily: '"DM Mono",monospace' }}>
-              {new Date(hud.candle.time).toLocaleString()}
+
+            {/* Timestamp */}
+            <div style={{
+              marginTop: '7px',
+              paddingTop: '5px',
+              borderTop: '1px solid rgba(255,255,255,0.05)',
+              fontSize: '9px',
+              color: THEME.textMuted,
+              fontFamily: THEME.fontMono,
+            }}>
+              {formatDateTime(hud.candle.time)}
             </div>
           </div>
         )}
-      </div>
-
-      {/* ── Bottom Stats ────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '1px', background: T.btnBorder, flexShrink: 0 }}>
-        {([
-          { label: 'Open', value: '$' + fmtPrice(stats.open), color: T.text },
-          { label: 'High', value: '$' + fmtPrice(stats.high), color: T.bull },
-          { label: 'Low', value: '$' + fmtPrice(stats.low), color: T.bear },
-          { label: 'Volume', value: fmtVol(stats.volume), color: T.text },
-        ]).map(x => (
-          <div key={x.label} style={{ background: T.bgCard, padding: '8px 14px' }}>
-            <div style={{ fontSize: '9px', color: T.textMuted, fontWeight: 500, marginBottom: '2px', letterSpacing: '0.4px' }}>{x.label}</div>
-            <div style={{ fontFamily: '"DM Mono",monospace', fontSize: '14px', fontWeight: 600, color: x.color, fontVariantNumeric: 'tabular-nums' }}>{x.value}</div>
-          </div>
-        ))}
       </div>
     </div>
   )

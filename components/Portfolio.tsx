@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import Badge from './ui/Badge'
-import OrderBook from './OrderBook'
+import OrderBookPro from './OrderBook'
 import TradePanel from './TradePanel'
 import StockDetailModal from './StockDetailModel'
 
@@ -223,9 +223,9 @@ export default function Portfolio() {
 
                 {/* Right column */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <TradePanel price={67420} />
+                    <TradePanel />
                     <div style={{ flex: 1, minHeight: '300px' }}>
-                        <OrderBook midPrice={67420} />
+                        <OrderBookPro />
                     </div>
                 </div>
             </div>

@@ -73,7 +73,7 @@ export function drawChart(
     // ── X labels ────────────────────────────────────────────────────────────
     const labelStep = Math.max(1, Math.floor(data.length / 8))
     ctx.textAlign = 'center'
-    ctx.font = `10px ${monoFont}`
+    ctx.font = `11px ${monoFont}`
     ctx.fillStyle = theme.muted
 
     for (let i = 0; i < data.length; i++) {

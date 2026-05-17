@@ -193,7 +193,7 @@ export default function AsseturaChart({
     const mapper = mapperRef.current
     if (!canvas || !mapper || !candles.length) return
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 3)
+    const dpr = Math.min(window.devicePixelRatio || 1, 4)
     const W = size.w
     const H = size.h
 

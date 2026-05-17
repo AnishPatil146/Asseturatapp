@@ -23,17 +23,20 @@ function MiniSparkline({ data, color, w=60, h=20 }: { data:number[]; color:strin
   useEffect(() => {
     const canvas = ref.current
     if (!canvas || data.length < 2) return
-    canvas.width = w * 2
-    canvas.height = h * 2
+    // 4K HiDPI: use actual devicePixelRatio for razor-sharp sparklines
+    const dpr = Math.min(window.devicePixelRatio || 1, 4)
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.setTransform(2,0,0,2,0,0)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const mn = Math.min(...data)
     const mx = Math.max(...data)
     const rng = mx - mn || 1
     ctx.strokeStyle = color
-    ctx.lineWidth = 1
+    ctx.lineWidth = 1.2
     ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
     ctx.beginPath()
     data.forEach((v,i) => {
       const x = (i/(data.length-1))*w

@@ -82,7 +82,7 @@ export function drawGrid(
 
     // Price label on right axis
     ctx.fillStyle = THEME.textMuted
-    ctx.font = `10px ${THEME.fontMono}`
+    ctx.font = `11px ${THEME.fontMono}`
     ctx.textAlign = 'left'
     ctx.fillText(formatPrice(p), padLeft + chartWidth + 8, rawY + 3.5)
   }
@@ -106,7 +106,7 @@ export function drawGrid(
     ctx.stroke()
 
     ctx.fillStyle = THEME.textMuted
-    ctx.font = `10px ${THEME.fontMono}`
+    ctx.font = `11px ${THEME.fontMono}`
     const label = tStep < 86_400_000 ? formatTime(t) : formatDate(t)
     ctx.fillText(label, rawX, mapper.height - 6)
   }
@@ -468,7 +468,7 @@ export function drawLastPriceLine(
   ctx.restore()
 
   ctx.fillStyle = '#000'
-  ctx.font = `bold 10px ${THEME.fontMono}`
+  ctx.font = `bold 11px ${THEME.fontMono}`
   ctx.textAlign = 'left'
   ctx.fillText(formatPrice(lastCandle.close), badgeX + 5, byCtr + 3.5)
 }
@@ -528,7 +528,7 @@ export function drawCrosshair(
   ctx.stroke()
 
   ctx.fillStyle = THEME.text
-  ctx.font = `10px ${THEME.fontMono}`
+  ctx.font = `11px ${THEME.fontMono}`
   ctx.textAlign = 'left'
   ctx.fillText(formatPrice(price), badgeX + 5, my + 3.5)
 
@@ -555,6 +555,7 @@ export function drawCrosshair(
   ctx.stroke()
 
   ctx.fillStyle = THEME.text
+  ctx.font = `11px ${THEME.fontMono}`
   ctx.textAlign = 'center'
   ctx.fillText(formatTime(timestamp), mx, ty + 12)
 }

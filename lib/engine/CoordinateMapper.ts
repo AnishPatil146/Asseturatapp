@@ -142,7 +142,7 @@ export function buildMapper(
   barMs: number = 300_000,
 ): CoordinateMapper {
   const dpr = typeof window !== 'undefined'
-    ? Math.min(window.devicePixelRatio || 1, 3)
+    ? Math.min(window.devicePixelRatio || 1, 4)
     : 1
 
   if (candles.length === 0) {

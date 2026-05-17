@@ -18,10 +18,12 @@ function ParticleField() {
 
         let animId: number
         let particles: { x: number; y: number; vx: number; vy: number; r: number; o: number }[] = []
+        const dpr = Math.min(window.devicePixelRatio || 1, 4)
 
         const resize = () => {
-            canvas.width = window.innerWidth
-            canvas.height = window.innerHeight
+            canvas.width = Math.round(window.innerWidth * dpr)
+            canvas.height = Math.round(window.innerHeight * dpr)
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
         }
         resize()
         window.addEventListener('resize', resize)
@@ -40,7 +42,9 @@ function ParticleField() {
         }
 
         const draw = () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            const cw = window.innerWidth
+            const ch = window.innerHeight
+            ctx.clearRect(0, 0, cw, ch)
 
             // Draw connections
             for (let i = 0; i < particles.length; i++) {
@@ -71,10 +75,10 @@ function ParticleField() {
                 p.y += p.vy
 
                 // Wrap
-                if (p.x < 0) p.x = canvas.width
-                if (p.x > canvas.width) p.x = 0
-                if (p.y < 0) p.y = canvas.height
-                if (p.y > canvas.height) p.y = 0
+                if (p.x < 0) p.x = cw
+                if (p.x > cw) p.x = 0
+                if (p.y < 0) p.y = ch
+                if (p.y > ch) p.y = 0
             })
 
             animId = requestAnimationFrame(draw)
@@ -138,8 +142,12 @@ function MiniSparkline({ color, positive }: { color: string; positive: boolean }
         const ctx = c.getContext('2d')
         if (!ctx) return
 
-        c.width = 60
-        c.height = 24
+        const w = 60, h = 24
+        // 4K HiDPI: use actual devicePixelRatio for razor-sharp sparklines
+        const dpr = Math.min(window.devicePixelRatio || 1, 4)
+        c.width = Math.round(w * dpr)
+        c.height = Math.round(h * dpr)
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
         const pts: number[] = []
         let v = 12
@@ -152,10 +160,12 @@ function MiniSparkline({ color, positive }: { color: string; positive: boolean }
         ctx.beginPath()
         ctx.moveTo(0, pts[0])
         pts.forEach((p, i) => {
-            if (i > 0) ctx.lineTo((i / (pts.length - 1)) * 60, p)
+            if (i > 0) ctx.lineTo((i / (pts.length - 1)) * w, p)
         })
         ctx.strokeStyle = color
         ctx.lineWidth = 1.5
+        ctx.lineJoin = 'round'
+        ctx.lineCap = 'round'
         ctx.stroke()
     }, [color, positive])
 

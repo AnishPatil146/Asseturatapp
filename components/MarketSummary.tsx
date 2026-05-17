@@ -44,10 +44,14 @@ function generateLine(base: number, n: number, vol: number, trend = 0) {
 function drawArea(canvas: HTMLCanvasElement, data: number[], color: string, fill: string) {
     const W = canvas.offsetWidth || 200
     const H = canvas.offsetHeight || 60
-    canvas.width = W
-    canvas.height = H
+    // 4K HiDPI: scale canvas buffer by devicePixelRatio for razor-sharp rendering
+    const dpr = Math.min(window.devicePixelRatio || 1, 4)
+    canvas.width = Math.round(W * dpr)
+    canvas.height = Math.round(H * dpr)
     const ctx = canvas.getContext('2d')
     if (!ctx || data.length < 2) return
+    // Scale all drawing operations to CSS-pixel space
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const mn = Math.min(...data) * 0.998
     const mx = Math.max(...data) * 1.002
     const rng = mx - mn || 1
@@ -69,6 +73,8 @@ function drawArea(canvas: HTMLCanvasElement, data: number[], color: string, fill
     data.forEach((v, i) => { if (i > 0) ctx.lineTo(px(i), py(v)) })
     ctx.strokeStyle = color
     ctx.lineWidth = 1.5
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
     ctx.stroke()
 }
 

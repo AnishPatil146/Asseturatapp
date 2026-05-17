@@ -109,7 +109,7 @@ export function drawGrid(ctx:CanvasRenderingContext2D,m:Mapper,c:NormalizedCandl
   // Horizontal grid + price labels on RIGHT
   const lo=Math.min(...c.map(x=>x.low)),hi=Math.max(...c.map(x=>x.high)),p=(hi-lo)*0.12||hi*0.05
   const ps=niceStep((hi-lo+2*p)/6),pS=Math.ceil((lo-p)/ps)*ps
-  ctx.font='10px Inter,-apple-system,sans-serif';ctx.textAlign='left'
+  ctx.font='11px Inter,-apple-system,sans-serif';ctx.textAlign='left'
   for(let v=pS;v<=hi+p+ps;v+=ps){const y=m.yPx(v);if(y<m.pT||y>m.chartB)continue
     ctx.strokeStyle=T.grid;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(m.chartL,y);ctx.lineTo(m.chartR,y);ctx.stroke()
     ctx.fillStyle=T.textMuted;ctx.fillText(fmtPrice(v),m.chartR+5,y+3)}
@@ -195,7 +195,7 @@ export function drawCrosshair(ctx:CanvasRenderingContext2D,m:Mapper,ch:{mx:numbe
   ctx.beginPath();ctx.moveTo(m.chartL,ch.my);ctx.lineTo(m.chartR,ch.my);ctx.stroke();ctx.setLineDash([])
   // Price badge on RIGHT
   ctx.fillStyle='#1e222d';ctx.fillRect(m.chartR+1,ch.my-8,m.pR-2,16);ctx.strokeStyle=T.btnBorder;ctx.lineWidth=0.5;ctx.strokeRect(m.chartR+1,ch.my-8,m.pR-2,16)
-  ctx.fillStyle=T.text;ctx.font='9px Inter,sans-serif';ctx.textAlign='left';ctx.fillText(fmtPrice(ch.price),m.chartR+4,ch.my+3)
+  ctx.fillStyle=T.text;ctx.font='10px Inter,sans-serif';ctx.textAlign='left';ctx.fillText(fmtPrice(ch.price),m.chartR+4,ch.my+3)
   // Time badge on bottom
   const tw=48;ctx.fillStyle='#1e222d';ctx.fillRect(ch.mx-tw/2,m.chartB+1,tw,14);ctx.strokeStyle=T.btnBorder;ctx.strokeRect(ch.mx-tw/2,m.chartB+1,tw,14)
   ctx.fillStyle=T.text;ctx.textAlign='center';ctx.fillText(fmtTime(ch.ts),ch.mx,m.chartB+11)
@@ -206,8 +206,8 @@ export function drawRSI(ctx:CanvasRenderingContext2D,rsi:number[],c:NormalizedCa
   const my=(v:number)=>y0+3+(1-v/100)*(h-6)
   ctx.strokeStyle='rgba(239,68,68,0.15)';ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(m.chartL,my(70));ctx.lineTo(m.chartR,my(70));ctx.stroke()
   ctx.strokeStyle='rgba(34,197,94,0.15)';ctx.beginPath();ctx.moveTo(m.chartL,my(30));ctx.lineTo(m.chartR,my(30));ctx.stroke();ctx.setLineDash([])
-  ctx.fillStyle=T.textDim;ctx.font='8px Inter,sans-serif';ctx.textAlign='right';ctx.fillText('70',m.chartL-4,my(70)+3);ctx.fillText('30',m.chartL-4,my(30)+3)
-  ctx.fillStyle=T.rsiLine;ctx.textAlign='left';ctx.font='9px Inter,sans-serif';ctx.fillText('RSI',m.chartL+3,y0+10)
+  ctx.fillStyle=T.textDim;ctx.font='9px Inter,sans-serif';ctx.textAlign='right';ctx.fillText('70',m.chartL-4,my(70)+3);ctx.fillText('30',m.chartL-4,my(30)+3)
+  ctx.fillStyle=T.rsiLine;ctx.textAlign='left';ctx.font='10px Inter,sans-serif';ctx.fillText('RSI',m.chartL+3,y0+10)
   ctx.strokeStyle=T.rsiLine;ctx.lineWidth=1.2;ctx.lineJoin='round';ctx.beginPath();let s=false
   for(let i=0;i<c.length;i++){const x=m.xPx(c[i].time),y=my(rsi[i]);if(x<m.chartL||x>m.chartR)continue;if(!s){ctx.moveTo(x,y);s=true}else ctx.lineTo(x,y)}
   ctx.stroke()
@@ -217,7 +217,7 @@ export function drawMACD(ctx:CanvasRenderingContext2D,macd:number[],signal:numbe
   ctx.fillStyle=T.bg;ctx.fillRect(0,y0,m.W,h);ctx.strokeStyle=T.gridStrong;ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(m.W,y0);ctx.stroke()
   const all=[...macd,...signal,...hist],mx=Math.max(...all.map(Math.abs),0.001)
   const my=(v:number)=>y0+h/2-(v/mx)*(h/2-5),cw=Math.max(1.5,m.cw(BAR_MS)*0.5)
-  ctx.fillStyle=T.macdLine;ctx.textAlign='left';ctx.font='9px Inter,sans-serif';ctx.fillText('MACD',m.chartL+3,y0+10)
+  ctx.fillStyle=T.macdLine;ctx.textAlign='left';ctx.font='10px Inter,sans-serif';ctx.fillText('MACD',m.chartL+3,y0+10)
   ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.setLineDash([1,3]);ctx.beginPath();ctx.moveTo(m.chartL,my(0));ctx.lineTo(m.chartR,my(0));ctx.stroke();ctx.setLineDash([])
   for(let i=0;i<c.length;i++){const x=m.xPx(c[i].time);if(x<m.chartL||x>m.chartR)continue
     ctx.globalAlpha=0.5;ctx.fillStyle=hist[i]>=0?T.bull:T.bear;const y1=my(0),y2=my(hist[i]);ctx.fillRect(x-cw/2,Math.min(y1,y2),cw,Math.abs(y2-y1)||1)}
